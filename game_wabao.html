@@ -23,15 +23,15 @@
         }
         #grid { 
             display: grid; 
-            grid-template-columns: repeat(4, 1fr); 
+            grid-template-columns: repeat(5, 1fr); 
             gap: 6px; 
-            max-width: 360px; 
+            max-width: 380px; 
             margin: 0 auto; 
         }
         .cell { 
             background-color: #8B4513; 
             border-radius: 6px; 
-            height: 55px; 
+            height: 60px; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
@@ -46,19 +46,15 @@
             background-color: #111; /* 更真实的黑色背景 */
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
-        .float-text {
-            position: absolute;
+        .fly-text {
+            position: fixed;
             color: #FFD700;
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             font-weight: bold;
-            text-shadow: 1px 1px 2px #000;
+            text-shadow: 1px 1px 2px #000, 0 0 5px #FFA500;
             pointer-events: none;
-            animation: floatUp 1s ease-out forwards;
-            z-index: 10;
-        }
-        @keyframes floatUp {
-            0% { opacity: 1; transform: translateY(0) scale(1); }
-            100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
+            z-index: 9999;
+            transform: translate(-50%, -50%);
         }
         .cell:active { 
             transform: scale(0.95); 
@@ -117,13 +113,13 @@
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
         let score = 0;
-        let totalCells = 32; // 4x8 = 32
+        let totalCells = 30; // 5x6 = 30
         
-        // 物品配置：只有金币、钻石、炸弹
+        // 物品配置：炸弹、金币、钻石比例为 3:2:1
         const items = [
-            { type: 'coin', emoji: '🪙', weight: 40, msg: '挖到金币啦！' },
-            { type: 'gem', emoji: '💎', weight: 30, msg: '哇！闪亮的钻石！' },
-            { type: 'bomb', emoji: '💣', weight: 30, msg: '砰！挖到炸弹啦！' }
+            { type: 'bomb', emoji: '💣', weight: 3, msg: '砰！挖到炸弹啦！' },
+            { type: 'coin', emoji: '🪙', weight: 2, msg: '挖到金币啦！' },
+            { type: 'gem', emoji: '�', weight: 1, msg: '哇！闪亮的钻石！' }
         ];
 
         // 初始化音频上下文 (需在用户交互后初始化)
@@ -139,46 +135,62 @@
             
             if (type === 'bomb') {
                 const time = audioCtx.currentTime;
+                const dur = 1.8; // 增加音效长度
                 
-                // 1. 爆炸主噪音（白噪音+低通滤波）
-                const bufferSize = audioCtx.sampleRate * 2;
+                // 1. 爆炸主噪音（带有明显的起伏和长尾）
+                const bufferSize = audioCtx.sampleRate * dur;
                 const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
                 const data = buffer.getChannelData(0);
                 for (let i = 0; i < bufferSize; i++) {
-                    data[i] = Math.random() * 2 - 1;
+                    // 指数衰减噪音，使后半段平滑降低
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.4));
                 }
                 const noise = audioCtx.createBufferSource();
                 noise.buffer = buffer;
                 
                 const noiseFilter = audioCtx.createBiquadFilter();
                 noiseFilter.type = 'lowpass';
-                // 模拟爆炸时的频率下降
-                noiseFilter.frequency.setValueAtTime(2500, time);
-                noiseFilter.frequency.exponentialRampToValueAtTime(100, time + 0.8);
+                noiseFilter.frequency.setValueAtTime(3000, time);
+                noiseFilter.frequency.exponentialRampToValueAtTime(50, time + dur);
                 
                 const noiseGain = audioCtx.createGain();
-                noiseGain.gain.setValueAtTime(1.5, time);
-                noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
+                noiseGain.gain.setValueAtTime(2.5, time);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
                 
                 noise.connect(noiseFilter);
                 noiseFilter.connect(noiseGain);
                 noiseGain.connect(audioCtx.destination);
                 noise.start(time);
                 
-                // 2. 爆炸的低频轰鸣声（Sub-bass drop）
+                // 2. 爆炸的低频轰鸣声（极低频的正弦波下潜）
                 const osc = audioCtx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(150, time);
-                osc.frequency.exponentialRampToValueAtTime(1, time + 0.8);
+                osc.type = 'triangle'; // 三角波在低频下听起来更厚实
+                osc.frequency.setValueAtTime(120, time);
+                osc.frequency.exponentialRampToValueAtTime(20, time + dur);
                 
                 const oscGain = audioCtx.createGain();
                 oscGain.gain.setValueAtTime(2, time);
-                oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
+                oscGain.gain.exponentialRampToValueAtTime(0.01, time + dur);
                 
                 osc.connect(oscGain);
                 oscGain.connect(audioCtx.destination);
                 osc.start(time);
-                osc.stop(time + 1);
+                osc.stop(time + dur);
+
+                // 3. 开始的“裂开/引爆”瞬间高频冲击
+                const crack = audioCtx.createOscillator();
+                crack.type = 'square';
+                crack.frequency.setValueAtTime(400, time);
+                crack.frequency.exponentialRampToValueAtTime(50, time + 0.2);
+                
+                const crackGain = audioCtx.createGain();
+                crackGain.gain.setValueAtTime(1.5, time);
+                crackGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+                
+                crack.connect(crackGain);
+                crackGain.connect(audioCtx.destination);
+                crack.start(time);
+                crack.stop(time + 0.2);
                 
             } else if (type === 'coin' || type === 'gem') {
                 // 模拟获得宝物的清脆提示音
@@ -232,17 +244,48 @@
             
             if (item.type === 'coin' || item.type === 'gem') {
                 const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
-                score += amount;
                 document.getElementById('message').innerText = item.msg + ` 获得 ¥${amount}`;
                 
-                // 弹出金额动画
-                const floatEl = document.createElement('div');
-                floatEl.className = 'float-text';
-                floatEl.innerText = '+¥' + amount;
-                cell.appendChild(floatEl);
-                setTimeout(() => floatEl.remove(), 1000);
-                
                 playSound(item.type);
+
+                // 弹出金额并飞向总金额处的动画特效
+                const cellRect = cell.getBoundingClientRect();
+                const scoreSpan = document.getElementById('score');
+                const scoreRect = scoreSpan.getBoundingClientRect();
+
+                const floatEl = document.createElement('div');
+                floatEl.className = 'fly-text';
+                floatEl.innerText = '+¥' + amount;
+                
+                // 起点：格子的中心
+                const startX = cellRect.left + cellRect.width / 2;
+                const startY = cellRect.top + cellRect.height / 2;
+                // 终点：右上角总金额的中心
+                const endX = scoreRect.left + scoreRect.width / 2;
+                const endY = scoreRect.top + scoreRect.height / 2;
+                
+                floatEl.style.left = startX + 'px';
+                floatEl.style.top = startY + 'px';
+                document.body.appendChild(floatEl);
+
+                // 使用 Web Animations API 实现分段动画
+                const anim = floatEl.animate([
+                    { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
+                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(1.5)', opacity: 1, offset: 0.3 }, // 弹起放大
+                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(1.5)', opacity: 1, offset: 0.5 }, // 悬停展示一瞬间
+                    { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0.2, offset: 1 } // 飞向总金额
+                ], {
+                    duration: 1200,
+                    easing: 'ease-in-out'
+                });
+
+                // 动画结束时更新总金额并移除特效元素
+                anim.onfinish = () => {
+                    floatEl.remove();
+                    score += amount;
+                    updateStats();
+                };
+
             } else if (item.type === 'bomb') {
                 document.getElementById('message').innerText = item.msg;
                 
@@ -251,9 +294,8 @@
                 
                 document.body.classList.add('shake');
                 setTimeout(() => document.body.classList.remove('shake'), 500);
+                updateStats(); // 炸弹没有飞行动画，所以直接更新检查
             }
-
-            updateStats();
         }
 
         function nextRound() {
