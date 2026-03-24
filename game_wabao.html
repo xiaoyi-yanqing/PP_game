@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>欢乐挖宝</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background-color: #f0f8ff; 
+            margin: 0; 
+            padding: 20px; 
+            overflow: hidden; 
+        }
+        h1 { color: #333; }
+        #stats { 
+            display: flex; 
+            justify-content: space-around; 
+            font-size: 1.2rem; 
+            margin-bottom: 20px; 
+            font-weight: bold; 
+        }
+        #grid { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 8px; 
+            max-width: 400px; 
+            margin: 0 auto; 
+        }
+        .cell { 
+            background-color: #8B4513; 
+            border-radius: 8px; 
+            height: 65px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 2rem; 
+            cursor: pointer; 
+            user-select: none; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+            transition: transform 0.1s; 
+            position: relative;
+        }
+        .float-text {
+            position: absolute;
+            color: #FFD700;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 10;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
+        }
+        .cell:active { 
+            transform: scale(0.95); 
+            box-shadow: 0 2px 3px rgba(0,0,0,0.3); 
+        }
+        .cell.dug { 
+            background-color: #DEB887; 
+            cursor: default; 
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); 
+            transform: none; 
+        }
+        /* 屏幕震动动画 */
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        #message { 
+            margin-top: 20px; 
+            font-size: 1.2rem; 
+            color: #d2691e; 
+            min-height: 1.5em; 
+            font-weight: bold;
+        }
+        button.restart { 
+            margin-top: 20px; 
+            padding: 10px 20px; 
+            font-size: 1.2rem; 
+            background-color: #e74c3c; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+    </style>
+</head>
+<body>
+    <h1>欢乐挖宝</h1>
+    <div id="stats">
+        <div>体力: <span id="energy">15</span></div>
+        <div>金额: ¥<span id="score">0.00</span></div>
+    </div>
+    <div id="grid"></div>
+    <div id="message">点击土块开始挖宝！</div>
+    <button class="restart" onclick="initGame()" style="display:none;" id="restartBtn">重新开始</button>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let score = 0;
+        let energy = 15;
+        
+        // 物品配置：只有金币、钻石、炸弹
+        const items = [
+            { type: 'coin', emoji: '🪙', weight: 40, energy: -1, msg: '挖到金币啦！' },
+            { type: 'gem', emoji: '💎', weight: 30, energy: -1, msg: '哇！闪亮的钻石！' },
+            { type: 'bomb', emoji: '💣', weight: 30, energy: -3, msg: '砰！挖到炸弹啦！只扣体力！' }
+        ];
+
+        // 初始化音频上下文 (需在用户交互后初始化)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        // Web Audio API 合成音效
+        function playSound(type) {
+            if (!audioCtx) return;
+            
+            if (type === 'bomb') {
+                // 模拟爆炸声 (白噪音 + 低通滤波器)
+                const bufferSize = audioCtx.sampleRate * 0.5;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.4);
+                
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(audioCtx.currentTime);
+            } else if (type === 'coin' || type === 'gem') {
+                // 模拟获得宝物的清脆提示音
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(type === 'coin' ? 800 : 1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(type === 'coin' ? 1200 : 2000, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            }
+        }
+
+        function getRandomItem() {
+            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+            let random = Math.random() * totalWeight;
+            for (const item of items) {
+                if (random < item.weight) return item;
+                random -= item.weight;
+            }
+            return items[0];
+        }
+
+        function updateStats() {
+            document.getElementById('score').innerText = score.toFixed(2);
+            document.getElementById('energy').innerText = energy;
+            if (energy <= 0) {
+                document.getElementById('message').innerText = '体力耗尽，游戏结束！最终获取金额：¥' + score.toFixed(2);
+                document.getElementById('restartBtn').style.display = 'inline-block';
+                document.querySelectorAll('.cell:not(.dug)').forEach(cell => {
+                    cell.classList.add('dug');
+                    cell.style.cursor = 'default';
+                });
+            }
+        }
+
+        function dig(event) {
+            if (energy <= 0) return;
+            initAudio(); // 确保音频上下文在点击后激活
+            const cell = event.target;
+            if (cell.classList.contains('dug')) return;
+
+            const item = getRandomItem();
+            cell.classList.add('dug');
+            cell.innerText = item.emoji;
+            
+            energy += item.energy;
+            
+            if (item.type === 'coin' || item.type === 'gem') {
+                const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
+                score += amount;
+                document.getElementById('message').innerText = item.msg + ` 获得 ¥${amount}`;
+                
+                // 弹出金额动画
+                const floatEl = document.createElement('div');
+                floatEl.className = 'float-text';
+                floatEl.innerText = '+¥' + amount;
+                cell.appendChild(floatEl);
+                setTimeout(() => floatEl.remove(), 1000);
+                
+                playSound(item.type);
+            } else if (item.type === 'bomb') {
+                document.getElementById('message').innerText = item.msg;
+                playSound('bomb');
+                document.body.classList.add('shake');
+                setTimeout(() => document.body.classList.remove('shake'), 500);
+            }
+
+            updateStats();
+        }
+
+        function initGame() {
+            score = 0;
+            energy = 15;
+            document.getElementById('restartBtn').style.display = 'none';
+            document.getElementById('message').innerText = '点击土块开始挖宝！';
+            document.body.classList.remove('shake');
+            
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', dig);
+                grid.appendChild(cell);
+            }
+            updateStats();
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
