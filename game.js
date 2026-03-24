@@ -461,8 +461,12 @@ function initFoxEasterEgg() {
             // 狐狸受惊吓的微小动画反馈
             foxEl.style.transform = `scaleX(-1) scale(${1 + foxClickCount * 0.1}) translateY(${foxClickCount * -2}px)`;
             
-            if (foxClickCount >= 5) {
+            if (foxClickCount >= 3) {
                 foxClickCount = 0;
+                
+                // 获取 footer 容器提升层级
+                const footerEl = document.querySelector('.footer-decoration');
+                if (footerEl) footerEl.classList.add('top-layer');
                 
                 // 狐狸巨大化
                 foxEl.classList.add('giant');
@@ -485,6 +489,7 @@ function initFoxEasterEgg() {
                 setTimeout(() => {
                     foxEl.classList.remove('giant');
                     foxEl.style.transform = ''; // 清除内联样式恢复CSS动画
+                    if (footerEl) footerEl.classList.remove('top-layer');
                 }, 3000);
                 
             } else {
@@ -562,7 +567,7 @@ function initEasterEgg() {
             clearTimeout(titleClickTimer);
             
             // 每次点击播放一个小音效作为反馈
-            if (audioCtx && titleClickCount < 10) {
+            if (audioCtx && titleClickCount < 3) {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = 'sine';
@@ -576,7 +581,7 @@ function initEasterEgg() {
                 osc.stop(audioCtx.currentTime + 0.1);
             }
             
-            if (titleClickCount >= 10) {
+            if (titleClickCount >= 3) {
                 titleClickCount = 0; // 重置
                 triggerEasterEgg();
             } else {

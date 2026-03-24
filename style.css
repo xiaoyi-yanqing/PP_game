@@ -342,7 +342,7 @@ body {
     z-index: 10000;
 }
 .footer-decoration.top-layer {
-    z-index: 9999;
+    z-index: 10000;
 }
 
 /* 具体动物定位与动画 */
