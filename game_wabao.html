@@ -49,12 +49,12 @@
         .fly-text {
             position: fixed;
             color: #FFD700;
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px #000, 0 0 5px #FFA500;
+            font-size: 2.5rem; /* 增大图标字号确保清晰 */
             pointer-events: none;
             z-index: 9999;
             transform: translate(-50%, -50%);
+            /* 添加一点轻微的文字阴影以增加立体感 */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
         .cell:active { 
             transform: scale(0.95); 
@@ -116,11 +116,19 @@
         let totalCells = 30; // 5x6 = 30
         
         // 物品配置：炸弹、金币、钻石比例为 3:2:1
+        // 注意：这里的 emoji 属性现在只是一个标记，实际显示在格子里的会是动态生成的图标
         const items = [
             { type: 'bomb', emoji: '💣', weight: 3, msg: '砰！挖到炸弹啦！' },
-            { type: 'coin', emoji: '🪙', weight: 2, msg: '挖到金币啦！' },
-            { type: 'gem', emoji: '�', weight: 1, msg: '哇！闪亮的钻石！' }
+            { type: 'coin', emoji: '🪙', weight: 2, msg: '挖到奖励啦！' },
+            { type: 'gem', emoji: '💎', weight: 1, msg: '哇！超级大奖！' }
         ];
+
+        // 奖励图标池 (小动物和水果)
+        const rewardIcons = ['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🥑','🍏','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵'];
+
+        function getRandomRewardIcon() {
+            return rewardIcons[Math.floor(Math.random() * rewardIcons.length)];
+        }
 
         // 初始化音频上下文 (需在用户交互后初始化)
         function initAudio() {
@@ -237,10 +245,16 @@
 
             const item = getRandomItem();
             cell.classList.add('dug');
+            
+            let displayIcon = item.emoji;
+            if (item.type === 'coin' || item.type === 'gem') {
+                displayIcon = getRandomRewardIcon();
+            }
+
             if (item.type === 'bomb') {
                 cell.classList.add('bomb-dug');
             }
-            cell.innerText = item.emoji;
+            cell.innerText = displayIcon;
             
             if (item.type === 'coin' || item.type === 'gem') {
                 const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
@@ -248,14 +262,14 @@
                 
                 playSound(item.type);
 
-                // 弹出金额并飞向总金额处的动画特效
+                // 弹出图标并飞向总金额处的动画特效
                 const cellRect = cell.getBoundingClientRect();
                 const scoreSpan = document.getElementById('score');
                 const scoreRect = scoreSpan.getBoundingClientRect();
 
                 const floatEl = document.createElement('div');
                 floatEl.className = 'fly-text';
-                floatEl.innerText = '+¥' + amount;
+                floatEl.innerText = displayIcon; // 这里改成了显示水果或动物图标
                 
                 // 起点：格子的中心
                 const startX = cellRect.left + cellRect.width / 2;
@@ -269,10 +283,11 @@
                 document.body.appendChild(floatEl);
 
                 // 使用 Web Animations API 实现分段动画
+                // 放大比例从 1.5 增加到 2.0，使其看起来更清楚
                 const anim = floatEl.animate([
                     { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 0 },
-                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(1.5)', opacity: 1, offset: 0.3 }, // 弹起放大
-                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(1.5)', opacity: 1, offset: 0.5 }, // 悬停展示一瞬间
+                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(2.0)', opacity: 1, offset: 0.3 }, // 弹起放大
+                    { transform: 'translate(-50%, calc(-50% - 40px)) scale(2.0)', opacity: 1, offset: 0.5 }, // 悬停展示一瞬间
                     { transform: `translate(calc(-50% + ${endX - startX}px), calc(-50% + ${endY - startY}px)) scale(0.5)`, opacity: 0.2, offset: 1 } // 飞向总金额
                 ], {
                     duration: 1200,
