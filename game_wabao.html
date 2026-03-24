@@ -24,23 +24,27 @@
         #grid { 
             display: grid; 
             grid-template-columns: repeat(5, 1fr); 
-            gap: 8px; 
+            gap: 5px; 
             max-width: 400px; 
             margin: 0 auto; 
         }
         .cell { 
             background-color: #8B4513; 
-            border-radius: 8px; 
-            height: 65px; 
+            border-radius: 6px; 
+            height: 45px; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            font-size: 2rem; 
+            font-size: 1.5rem; 
             cursor: pointer; 
             user-select: none; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
             transition: transform 0.1s; 
             position: relative;
+        }
+        .cell.bomb-dug {
+            background-color: #111; /* 更真实的黑色背景 */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
         .float-text {
             position: absolute;
@@ -103,24 +107,23 @@
 <body>
     <h1>欢乐挖宝</h1>
     <div id="stats">
-        <div>体力: <span id="energy">15</span></div>
         <div>金额: ¥<span id="score">0.00</span></div>
+        <button onclick="nextRound()" style="padding: 5px 15px; font-size: 1rem; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">下一局</button>
     </div>
     <div id="grid"></div>
-    <div id="message">点击土块开始挖宝！</div>
-    <button class="restart" onclick="initGame()" style="display:none;" id="restartBtn">重新开始</button>
+    <div id="message">点击土块开始挖宝！(剩余土块≤20%自动进入下一局)</div>
 
     <script>
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
         let score = 0;
-        let energy = 15;
+        let totalCells = 45; // 5x9 = 45
         
         // 物品配置：只有金币、钻石、炸弹
         const items = [
-            { type: 'coin', emoji: '🪙', weight: 40, energy: -1, msg: '挖到金币啦！' },
-            { type: 'gem', emoji: '💎', weight: 30, energy: -1, msg: '哇！闪亮的钻石！' },
-            { type: 'bomb', emoji: '💣', weight: 30, energy: -3, msg: '砰！挖到炸弹啦！只扣体力！' }
+            { type: 'coin', emoji: '🪙', weight: 40, msg: '挖到金币啦！' },
+            { type: 'gem', emoji: '💎', weight: 30, msg: '哇！闪亮的钻石！' },
+            { type: 'bomb', emoji: '💣', weight: 30, msg: '砰！挖到炸弹啦！' }
         ];
 
         // 初始化音频上下文 (需在用户交互后初始化)
@@ -186,28 +189,27 @@
 
         function updateStats() {
             document.getElementById('score').innerText = score.toFixed(2);
-            document.getElementById('energy').innerText = energy;
-            if (energy <= 0) {
-                document.getElementById('message').innerText = '体力耗尽，游戏结束！最终获取金额：¥' + score.toFixed(2);
-                document.getElementById('restartBtn').style.display = 'inline-block';
-                document.querySelectorAll('.cell:not(.dug)').forEach(cell => {
-                    cell.classList.add('dug');
-                    cell.style.cursor = 'default';
-                });
+            
+            // 检查剩余未点击格子比例
+            const dugCells = document.querySelectorAll('.cell.dug').length;
+            const remaining = totalCells - dugCells;
+            if (remaining <= totalCells * 0.2) {
+                document.getElementById('message').innerText = '剩余土块不足20%，自动进入下一局！';
+                setTimeout(() => nextRound(), 1500); // 延迟一小会儿自动进入下一局
             }
         }
 
         function dig(event) {
-            if (energy <= 0) return;
             initAudio(); // 确保音频上下文在点击后激活
             const cell = event.target;
             if (cell.classList.contains('dug')) return;
 
             const item = getRandomItem();
             cell.classList.add('dug');
+            if (item.type === 'bomb') {
+                cell.classList.add('bomb-dug');
+            }
             cell.innerText = item.emoji;
-            
-            energy += item.energy;
             
             if (item.type === 'coin' || item.type === 'gem') {
                 const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
@@ -224,7 +226,13 @@
                 playSound(item.type);
             } else if (item.type === 'bomb') {
                 document.getElementById('message').innerText = item.msg;
-                playSound('bomb');
+                // 使用语音合成真实 boom 音效
+                const utterance = new SpeechSynthesisUtterance('boom');
+                utterance.lang = 'en-US';
+                utterance.pitch = 0.1; // 低沉的声音
+                utterance.rate = 0.8;
+                window.speechSynthesis.speak(utterance);
+                
                 document.body.classList.add('shake');
                 setTimeout(() => document.body.classList.remove('shake'), 500);
             }
@@ -232,22 +240,24 @@
             updateStats();
         }
 
-        function initGame() {
-            score = 0;
-            energy = 15;
-            document.getElementById('restartBtn').style.display = 'none';
-            document.getElementById('message').innerText = '点击土块开始挖宝！';
+        function nextRound() {
+            document.getElementById('message').innerText = '新的一局开始啦！';
             document.body.classList.remove('shake');
             
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
-            for (let i = 0; i < 25; i++) {
+            for (let i = 0; i < totalCells; i++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.addEventListener('click', dig);
                 grid.appendChild(cell);
             }
             updateStats();
+        }
+
+        function initGame() {
+            score = 0;
+            nextRound();
         }
 
         window.onload = initGame;
