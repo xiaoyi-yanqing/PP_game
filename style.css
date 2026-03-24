@@ -19,6 +19,14 @@ h1 {
     letter-spacing: 2px;
     margin-top: 10px;
     margin-bottom: 15px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s;
+}
+h1:active {
+    transform: scale(0.95);
 }
 #stats { 
     display: flex; 
@@ -316,11 +324,35 @@ body {
     filter: drop-shadow(0 5px 5px rgba(0,0,0,0.2));
 }
 
+/* 允许狐狸响应点击 */
+.fox {
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.2s, top 0.5s, left 0.5s;
+}
+.fox.giant {
+    animation: none !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) scaleX(-1) scale(8) !important;
+    z-index: 10000;
+}
+.footer-decoration.top-layer {
+    z-index: 9999;
+}
+
 /* 具体动物定位与动画 */
 .bunny {
     bottom: 50px;
     left: 15%;
     animation: jump 2s infinite ease-in-out;
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 .fox {
     bottom: 60px;
@@ -456,4 +488,130 @@ body {
         font-size: 1.2rem;
         padding: 12px;
     }
+}
+
+/* =========================================
+   彩蛋：金币/糖果雨特效
+   ========================================= */
+.rain-item {
+    position: fixed;
+    top: -50px;
+    font-size: 2rem;
+    pointer-events: none;
+    z-index: 10000;
+    animation: fall linear forwards;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+@keyframes fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(110vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* =========================================
+   彩蛋：全屏烟花特效
+   ========================================= */
+.firework {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 
+        0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff,
+        0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff,
+        0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff,
+        0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff, 0 0 #fff;
+    animation: firework-bang 1.5s ease-out infinite backwards;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+@keyframes firework-bang {
+    0% {
+        box-shadow: 
+            0 0 #ff0, 0 0 #f0f, 0 0 #0ff, 0 0 #0f0, 0 0 #f00,
+            0 0 #00f, 0 0 #ff0, 0 0 #f0f, 0 0 #0ff, 0 0 #0f0,
+            0 0 #f00, 0 0 #00f, 0 0 #ff0, 0 0 #f0f, 0 0 #0ff,
+            0 0 #0f0, 0 0 #f00, 0 0 #00f, 0 0 #ff0, 0 0 #f0f;
+    }
+    100% {
+        box-shadow: 
+            -150px -150px 0 -2px #ff0, 150px -150px 0 -2px #f0f, -150px 150px 0 -2px #0ff, 150px 150px 0 -2px #0f0, 0 -200px 0 -2px #f00,
+            0 200px 0 -2px #00f, -200px 0 0 -2px #ff0, 200px 0 0 -2px #f0f, -100px -200px 0 -2px #0ff, 100px -200px 0 -2px #0f0,
+            -100px 200px 0 -2px #f00, 100px 200px 0 -2px #00f, -200px -100px 0 -2px #ff0, 200px -100px 0 -2px #f0f, -200px 100px 0 -2px #0ff,
+            200px 100px 0 -2px #0f0, -75px -75px 0 -2px #f00, 75px -75px 0 -2px #00f, -75px 75px 0 -2px #ff0, 75px 75px 0 -2px #f0f;
+        opacity: 0;
+    }
+}
+
+/* =========================================
+   彩蛋：兔子照片弹出层
+   ========================================= */
+.photo-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 20000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.photo-overlay.show {
+    opacity: 1;
+}
+.photo-overlay img {
+    max-width: 90%;
+    max-height: 90%;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    transform: scale(0.5);
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    object-fit: contain;
+}
+.photo-overlay.show img {
+    transform: scale(1);
+}
+.photo-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #ff6b6b;
+    color: white;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    z-index: 20001;
+    transition: transform 0.1s;
+}
+.photo-close-btn:active {
+    transform: scale(0.9);
+}
+.photo-overlay .error-msg {
+    background: #fff;
+    padding: 30px;
+    border-radius: 20px;
+    text-align: center;
+    font-size: 1.5rem;
+    color: #333;
+    line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }

@@ -201,6 +201,9 @@ function dig(event) {
         const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
         document.getElementById('message').innerText = item.msg + ` 获得 ¥${amount}`;
         
+        // 记录加分前的状态，用于检查是否跨越百位
+        const oldScore = score;
+        
         // 播放获取奖励的音效
         playSound(item.type);
         // 语音播报物品名称
@@ -243,6 +246,9 @@ function dig(event) {
             floatEl.remove();
             score += amount;
             updateStats();
+            
+            // 检查百分烟花彩蛋
+            checkHundredEasterEgg(oldScore, score);
         };
 
     } else if (item.type === 'bomb') {
@@ -365,7 +371,329 @@ function initSpeech() {
     }
 }
 
+// ==========================================
+// 彩蛋系统：百分烟花庆祝
+// ==========================================
+function triggerFireworks() {
+    // 播放礼花音效
+    if (audioCtx) {
+        for(let i=0; i<3; i++) {
+            setTimeout(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            }, i * 300);
+        }
+    }
+    
+    // 弹出提示
+    const msgEl = document.getElementById('message');
+    msgEl.innerText = `🎆 哇！你的分数突破了 ${Math.floor(score/100)*100} 分！太棒啦！ 🎆`;
+    msgEl.style.backgroundColor = '#8e44ad';
+    
+    // 释放烟花
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+            const firework = document.createElement('div');
+            firework.className = 'firework';
+            // 随机位置
+            firework.style.left = (20 + Math.random() * 60) + 'vw';
+            firework.style.top = (20 + Math.random() * 40) + 'vh';
+            // 随机大小和颜色偏移
+            firework.style.transform = `translate(-50%, -50%) scale(${0.5 + Math.random()})`;
+            document.body.appendChild(firework);
+            
+            setTimeout(() => firework.remove(), 1500);
+        }, i * 400);
+    }
+}
+
+function checkHundredEasterEgg(oldVal, newVal) {
+    // 检查是否跨越了 100 的整数倍 (例如从 99 变成 101)
+    const oldHundred = Math.floor(oldVal / 100);
+    const newHundred = Math.floor(newVal / 100);
+    
+    if (newHundred > oldHundred && newHundred > 0) {
+        triggerFireworks();
+    }
+}
+
+// ==========================================
+// 彩蛋系统：狐狸送礼
+// ==========================================
+let foxClickCount = 0;
+let foxClickTimer = null;
+
+function initFoxEasterEgg() {
+    const foxEl = document.querySelector('.animal.fox');
+    if (foxEl) {
+        foxEl.addEventListener('click', () => {
+            initAudio();
+            
+            // 如果狐狸已经是巨大状态，不响应点击
+            if (foxEl.classList.contains('giant')) return;
+            
+            foxClickCount++;
+            clearTimeout(foxClickTimer);
+            
+            // 播放狐狸叫声模拟（短促高音）
+            if (audioCtx) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800 + foxClickCount * 100, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            }
+            
+            // 狐狸受惊吓的微小动画反馈
+            foxEl.style.transform = `scaleX(-1) scale(${1 + foxClickCount * 0.1}) translateY(${foxClickCount * -2}px)`;
+            
+            if (foxClickCount >= 5) {
+                foxClickCount = 0;
+                
+                // 狐狸巨大化
+                foxEl.classList.add('giant');
+                
+                // 播放惊喜音效
+                playSound('gem');
+                
+                // 给分
+                const oldScore = score;
+                score += 20;
+                updateStats();
+                
+                const msgEl = document.getElementById('message');
+                msgEl.innerText = '🦊 躲猫猫的狐狸被你发现了！送你 20 分！ 🦊';
+                msgEl.style.backgroundColor = '#d35400';
+                
+                checkHundredEasterEgg(oldScore, score);
+                
+                // 3秒后狐狸恢复原样
+                setTimeout(() => {
+                    foxEl.classList.remove('giant');
+                    foxEl.style.transform = ''; // 清除内联样式恢复CSS动画
+                }, 3000);
+                
+            } else {
+                foxClickTimer = setTimeout(() => {
+                    foxClickCount = 0;
+                    foxEl.style.transform = ''; // 恢复正常
+                }, 2000);
+            }
+        });
+    }
+}
+
+// ==========================================
+// 彩蛋系统：连击标题触发“金币/糖果雨”
+// ==========================================
+let titleClickCount = 0;
+let titleClickTimer = null;
+
+function triggerEasterEgg() {
+    // 播放彩蛋音效（类似大量金币的声音）
+    playSound('gem');
+    setTimeout(() => playSound('coin'), 200);
+    setTimeout(() => playSound('gem'), 400);
+    
+    // 弹出提示
+    const msgEl = document.getElementById('message');
+    msgEl.innerText = '🎉 恭喜你发现了隐藏彩蛋：超级糖果雨！🎉';
+    msgEl.style.backgroundColor = '#e84393';
+    
+    // 额外加分奖励
+    score += 50;
+    updateStats();
+    
+    // 下起金币和糖果雨
+    const rainIcons = ['🍬', '🍭', '🍫', '🪙', '💎', '💰', '🌟'];
+    const rainCount = 60; // 生成60个下落物
+    
+    for (let i = 0; i < rainCount; i++) {
+        setTimeout(() => {
+            const rainEl = document.createElement('div');
+            rainEl.className = 'rain-item';
+            // 随机选择一个图标
+            rainEl.innerText = rainIcons[Math.floor(Math.random() * rainIcons.length)];
+            
+            // 随机水平位置 (0% 到 100%)
+            rainEl.style.left = Math.random() * 100 + 'vw';
+            
+            // 随机大小
+            const scale = 0.5 + Math.random() * 1;
+            rainEl.style.transform = `scale(${scale})`;
+            
+            // 随机下落时间 (2s 到 5s)
+            const duration = 2 + Math.random() * 3;
+            rainEl.style.animationDuration = duration + 's';
+            
+            document.body.appendChild(rainEl);
+            
+            // 动画结束后移除元素
+            setTimeout(() => {
+                rainEl.remove();
+            }, duration * 1000);
+            
+        }, Math.random() * 2000); // 在2秒内陆续生成
+    }
+}
+
+function initEasterEgg() {
+    const titleEl = document.getElementById('gameTitle');
+    if (titleEl) {
+        titleEl.addEventListener('click', () => {
+            initAudio(); // 确保音频上下文激活
+            titleClickCount++;
+            
+            // 如果点击了，重置计时器
+            clearTimeout(titleClickTimer);
+            
+            // 每次点击播放一个小音效作为反馈
+            if (audioCtx && titleClickCount < 10) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                // 音调随着点击次数逐渐升高
+                osc.frequency.setValueAtTime(400 + titleClickCount * 50, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            }
+            
+            if (titleClickCount >= 10) {
+                titleClickCount = 0; // 重置
+                triggerEasterEgg();
+            } else {
+                // 如果超过2秒没有继续点击，重置计数
+                titleClickTimer = setTimeout(() => {
+                    titleClickCount = 0;
+                }, 2000);
+            }
+        });
+    }
+}
+
+// ==========================================
+// 彩蛋系统：兔子照片
+// ==========================================
+let bunnyClickCount = 0;
+let bunnyClickTimer = null;
+
+function initBunnyEasterEgg() {
+    const bunnyEl = document.querySelector('.animal.bunny');
+    if (bunnyEl) {
+        bunnyEl.addEventListener('click', () => {
+            initAudio();
+            bunnyClickCount++;
+            clearTimeout(bunnyClickTimer);
+            
+            // 每次点击播放类似兔子跳跃/叫声的音效
+            if (audioCtx) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600 + bunnyClickCount * 50, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            }
+            
+            // 兔子微小缩放反馈
+            bunnyEl.style.transform = `scale(${1 + bunnyClickCount * 0.1})`;
+            
+            if (bunnyClickCount >= 10) {
+                bunnyClickCount = 0;
+                bunnyEl.style.transform = ''; // 恢复
+                
+                // 播放惊喜音效
+                playSound('gem');
+                
+                // 弹出照片
+                showPhotoOverlay();
+            } else {
+                bunnyClickTimer = setTimeout(() => {
+                    bunnyClickCount = 0;
+                    bunnyEl.style.transform = ''; // 恢复
+                }, 2000);
+            }
+        });
+    }
+}
+
+function showPhotoOverlay() {
+    let overlay = document.getElementById('photoOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'photoOverlay';
+        overlay.className = 'photo-overlay';
+        
+        const img = document.createElement('img');
+        // 使用相对路径加载同目录下的 photo.jpg
+        img.src = 'photo.jpg'; 
+        img.alt = '惊喜照片';
+        
+        // 如果图片加载失败，显示提示文本
+        img.onerror = () => {
+            img.style.display = 'none';
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'error-msg';
+            errorMsg.innerHTML = '📷 <b>照片未找到</b> 📷<br><br>请将您上传的照片重命名为 <span style="color:#e74c3c;">photo.jpg</span><br>并保存在游戏的同一个文件夹下哦！';
+            overlay.appendChild(errorMsg);
+        };
+        
+        overlay.appendChild(img);
+        
+        // 创建关闭按钮
+        const closeBtn = document.createElement('div');
+        closeBtn.className = 'photo-close-btn';
+        closeBtn.innerHTML = '×';
+        overlay.appendChild(closeBtn);
+        
+        document.body.appendChild(overlay);
+        
+        // 只有点击关闭按钮才会消失
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                // 如果是加载失败导致的，清空内容以便下次重试加载
+                if (img.style.display === 'none') {
+                    overlay.remove();
+                }
+            }, 300);
+        });
+    }
+    
+    overlay.style.display = 'flex';
+    // 强制重绘以触发过渡动画
+    void overlay.offsetWidth;
+    overlay.classList.add('show');
+}
+
 window.onload = () => {
     initSpeech();
+    initFoxEasterEgg();
+    initBunnyEasterEgg();
+    initEasterEgg();
     initGame();
 };
