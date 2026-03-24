@@ -1,0 +1,459 @@
+/* 导入卡通字体 */
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+
+body { 
+    font-family: 'ZCOOL KuaiLe', sans-serif; /* 使用可爱的卡通字体 */
+    text-align: center; 
+    background-color: #f0f8ff; 
+    margin: 0; 
+    padding: 20px; 
+    overflow-x: hidden; 
+    overflow-y: auto; /* 允许竖向滚动，适配大网格不被截断 */
+    transition: background 1s ease; /* 背景切换动画 */
+    -webkit-tap-highlight-color: transparent; /* 消除 iOS 点击灰色背景 */
+}
+h1 { 
+    color: #ff6b6b; 
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff, 2px -2px 0px #fff, -2px 2px 0px #fff, 3px 3px 5px rgba(0,0,0,0.2);
+    letter-spacing: 2px;
+    margin-top: 10px;
+    margin-bottom: 15px;
+}
+#stats { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin: 0 auto 20px auto; 
+    padding: 0 10px;
+    width: 100%;
+    max-width: 380px;
+    box-sizing: border-box;
+}
+.score-box {
+    font-size: 1.2rem; /* 减小金额字体 */
+    font-weight: bold; 
+    background: rgba(255, 255, 255, 0.5); /* 更透明的背景，弱化存在感 */
+    padding: 5px 12px;
+    border-radius: 15px;
+    color: #555;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.btn-next {
+    padding: 10px 20px; 
+    font-size: 1.3rem; 
+    background-color: #ff7675; /* 换成更活泼的珊瑚色 */
+    color: white; 
+    border: 3px solid #d63031;
+    border-radius: 15px; 
+    cursor: pointer; 
+    font-family: inherit; 
+    font-weight: bold; 
+    box-shadow: 0 5px 0 #d63031; 
+    transition: transform 0.1s, box-shadow 0.1s;
+    letter-spacing: 1px;
+}
+.btn-next:active {
+    transform: translateY(5px);
+    box-shadow: 0 0 0 #d63031;
+}
+#grid { 
+    display: grid; 
+    grid-template-columns: repeat(5, 1fr); 
+    gap: 6px; 
+    width: 100%;
+    max-width: 380px; 
+    margin: 0 auto; 
+}
+.cell { 
+    background-color: #d35400; /* 调浅土块基础颜色 */
+    background-image: linear-gradient(45deg, #d35400 25%, #e67e22 25%, #e67e22 50%, #d35400 50%, #d35400 75%, #e67e22 75%, #e67e22 100%);
+    background-size: 20px 20px;
+    border-radius: 12px; 
+    height: 60px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 1.8rem; 
+    cursor: pointer; 
+    -webkit-user-select: none;
+    user-select: none; 
+    box-shadow: 0 6px 0 #a04000, 0 8px 10px rgba(0,0,0,0.3); /* 调整阴影颜色 */
+    transition: transform 0.1s, box-shadow 0.1s; 
+    position: relative;
+    border: 3px solid #a04000;
+}
+.cell.bomb-dug {
+    background-color: #2c3e50; /* 炸弹挖开的颜色稍微没那么黑 */
+    background-image: none;
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.6);
+    border-color: #1a252f;
+}
+.fly-text {
+    position: fixed;
+    color: #FFD700;
+    font-size: 2.5rem; /* 增大图标字号确保清晰 */
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    /* 添加一点轻微的文字阴影以增加立体感 */
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+.cell:active { 
+    transform: translateY(6px); 
+    box-shadow: 0 0 0 #a04000, 0 2px 4px rgba(0,0,0,0.4); 
+}
+.cell.dug { 
+    background-color: #f39c12; /* 挖开后的土块颜色调浅调亮 */
+    background-image: none;
+    cursor: default; 
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.2); 
+    transform: translateY(6px); 
+    border-color: #e67e22;
+}
+/* 屏幕震动动画 */
+.shake { animation: shake 0.8s cubic-bezier(.36,.07,.19,.97) both; }
+@keyframes shake {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    10%, 90% { transform: translate3d(-3px, -3px, 0) scale(1.02); }
+    20%, 80% { transform: translate3d(4px, 4px, 0) scale(0.98); }
+    30%, 50%, 70% { transform: translate3d(-6px, 6px, 0) scale(1.05); }
+    40%, 60% { transform: translate3d(6px, -6px, 0) scale(0.95); }
+}
+
+/* 爆炸半透明红光特效（替代刺眼闪白） */
+.flash {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(255, 69, 0, 0.4); /* 柔和的半透明橙红色 */
+    z-index: 9998;
+    pointer-events: none;
+    animation: flashAnim 0.6s ease-out forwards;
+}
+@keyframes flashAnim {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* 炸弹弹出动画效果元素 */
+.bomb-pop {
+    position: fixed;
+    font-size: 5rem;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 0 15px rgba(0, 0, 0, 0.5)); /* 改为柔和的黑色阴影，避免刺眼红光 */
+}
+#message { 
+    margin: 10px auto 0 auto; 
+    font-size: 0.9rem; 
+    color: #fff; 
+    background-color: #ff9f43;
+    border-radius: 15px;
+    padding: 6px 10px;
+    min-height: 1.2em; 
+    font-weight: bold;
+    box-shadow: 0 3px 0 #d35400;
+    width: 100%;
+    max-width: 380px;
+    box-sizing: border-box;
+    border: 2px solid #fff;
+    opacity: 0.9;
+}
+
+/* 设置面板相关样式 */
+.settings-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 1.2rem; /* 图标缩小 */
+    cursor: pointer;
+    background: #fff;
+    border: 2px solid #3498db;
+    color: #333;
+    z-index: 100;
+    border-radius: 50%;
+    width: 35px; /* 按钮整体缩小 */
+    height: 35px;
+    box-shadow: 0 3px 0 #2980b9;
+    transition: transform 0.1s, box-shadow 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.8; /* 增加一点透明度让它不那么显眼 */
+}
+.settings-btn:hover {
+    opacity: 1;
+}
+.settings-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 0 0 #2980b9;
+}
+.settings-modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+}
+.settings-content {
+    background-color: #fffde7;
+    padding: 30px;
+    border-radius: 20px;
+    text-align: left;
+    width: 280px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    border: 5px solid #f1c40f;
+}
+.settings-content h3 { 
+    margin-top: 0; 
+    text-align: center; 
+    color: #e67e22;
+    font-size: 2rem;
+}
+.setting-row {
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.2rem;
+    color: #34495e;
+    font-weight: bold;
+}
+.setting-row input {
+    width: 60px;
+    padding: 8px;
+    text-align: center;
+    border: 2px solid #bdc3c7;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    font-family: inherit;
+}
+.settings-actions {
+    text-align: center;
+    margin-top: 25px;
+}
+.settings-actions button {
+    padding: 10px 20px;
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: bold;
+    box-shadow: 0 5px 0 #27ae60;
+    transition: transform 0.1s, box-shadow 0.1s;
+    font-family: inherit;
+}
+.settings-actions button:active {
+    transform: translateY(5px);
+    box-shadow: 0 0 0 #27ae60;
+}
+.btn-cancel {
+    background-color: #e74c3c !important;
+    box-shadow: 0 5px 0 #c0392b !important;
+    margin-left: 15px;
+}
+.btn-cancel:active {
+    box-shadow: 0 0 0 #c0392b !important;
+}
+
+/* 可爱的主题背景 */
+.bg-theme-0 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+.bg-theme-1 { background: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%); }
+.bg-theme-2 { background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); }
+.bg-theme-3 { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
+.bg-theme-4 { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); }
+
+/* 页面布局控制，为底部草丛留出空间 */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-bottom: 120px; /* 留给底部装饰空间 */
+    box-sizing: border-box;
+}
+
+.game-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    z-index: 10; /* 保证游戏区在草丛上层 */
+}
+
+/* 底部草丛与动物装饰 */
+.footer-decoration {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 150px;
+    z-index: 5;
+    pointer-events: none; /* 装饰层不阻挡点击 */
+}
+
+/* 纯 CSS 绘制波浪形草丛背景 */
+.grass-bg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100px;
+    background: #27ae60;
+    border-radius: 100% 100% 0 0 / 50px 80px 0 0;
+    box-shadow: inset 0 20px 0 rgba(46, 204, 113, 0.8),
+                0 -20px 0 #2ecc71; /* 多层草丛效果 */
+}
+
+/* 动物与装饰物的公共样式 */
+.footer-decoration > div:not(.grass-bg) {
+    position: absolute;
+    font-size: 3rem;
+    filter: drop-shadow(0 5px 5px rgba(0,0,0,0.2));
+}
+
+/* 具体动物定位与动画 */
+.bunny {
+    bottom: 50px;
+    left: 15%;
+    animation: jump 2s infinite ease-in-out;
+}
+.fox {
+    bottom: 60px;
+    right: 25%;
+    transform: scaleX(-1); /* 翻转面朝左 */
+    animation: peek 4s infinite ease-in-out;
+}
+.bear {
+    bottom: 70px;
+    left: 45%;
+    animation: sway 3s infinite ease-in-out;
+}
+.slide {
+    bottom: 80px;
+    right: 10%;
+    font-size: 4rem;
+}
+.flower {
+    bottom: 40px;
+    left: 30%;
+    font-size: 2rem;
+    animation: sway 4s infinite ease-in-out reverse;
+}
+.flower.f2 {
+    bottom: 50px;
+    right: 40%;
+    font-size: 1.5rem;
+}
+.butterfly {
+    bottom: 120px;
+    left: 20%;
+    font-size: 2rem;
+    animation: fly 6s infinite linear;
+}
+
+/* 动物装饰的趣味动画 */
+@keyframes jump {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+@keyframes peek {
+    0%, 100% { transform: scaleX(-1) translateY(0); }
+    50% { transform: scaleX(-1) translateY(15px); } /* 躲进草里 */
+}
+@keyframes sway {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+}
+@keyframes fly {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(30px, -20px) rotate(15deg); }
+    50% { transform: translate(60px, 0) rotate(0deg); }
+    75% { transform: translate(30px, 20px) rotate(-15deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+/* =========================================
+   iPad / 平板大屏幕适配 
+   ========================================= */
+@media (min-width: 768px) {
+    h1 {
+        font-size: 3.5rem;
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+    
+    #stats, #grid, #message {
+        max-width: 600px;
+    }
+    
+    .score-box {
+        font-size: 1.6rem;
+        padding: 8px 18px;
+        border-radius: 20px;
+    }
+    
+    .btn-next {
+        font-size: 1.6rem;
+        padding: 12px 25px;
+        border-radius: 20px;
+    }
+    
+    .cell {
+        height: 85px;
+        font-size: 2.5rem;
+        border-radius: 16px;
+        box-shadow: 0 8px 0 #a04000, 0 10px 15px rgba(0,0,0,0.3);
+    }
+    
+    .cell:active {
+        transform: translateY(8px);
+        box-shadow: 0 0 0 #a04000, 0 2px 4px rgba(0,0,0,0.4);
+    }
+    
+    .cell.dug {
+        transform: translateY(8px);
+    }
+    
+    #message {
+        font-size: 1.2rem;
+        padding: 10px 15px;
+        border-radius: 20px;
+        margin-top: 25px;
+    }
+    
+    .settings-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 1.8rem;
+        top: 20px;
+        right: 20px;
+    }
+    
+    .settings-content {
+        width: 400px;
+        padding: 30px;
+    }
+    
+    .settings-content h3 {
+        font-size: 2rem;
+    }
+    
+    .setting-row label {
+        font-size: 1.4rem;
+    }
+    
+    .setting-row input {
+        font-size: 1.4rem;
+        width: 80px;
+    }
+    
+    .settings-actions button {
+        font-size: 1.2rem;
+        padding: 12px;
+    }
+}
