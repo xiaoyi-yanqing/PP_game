@@ -123,8 +123,25 @@
             { type: 'gem', emoji: '💎', weight: 1, msg: '哇！超级大奖！' }
         ];
 
-        // 奖励图标池 (小动物和水果)
-        const rewardIcons = ['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🥑','🍏','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵'];
+        // 奖励图标池 (小动物和水果) 及对应名称
+        const rewardIcons = [
+            { icon: '🍎', name: '苹果' }, { icon: '🍐', name: '梨' }, 
+            { icon: '🍊', name: '橘子' }, { icon: '🍋', name: '柠檬' }, 
+            { icon: '🍌', name: '香蕉' }, { icon: '🍉', name: '西瓜' }, 
+            { icon: '🍇', name: '葡萄' }, { icon: '🍓', name: '草莓' }, 
+            { icon: '🍒', name: '樱桃' }, { icon: '🍑', name: '桃子' }, 
+            { icon: '🥭', name: '芒果' }, { icon: '🍍', name: '菠萝' }, 
+            { icon: '🥥', name: '椰子' }, { icon: '🥝', name: '猕猴桃' }, 
+            { icon: '🍅', name: '西红柿' }, { icon: '🥑', name: '牛油果' }, 
+            { icon: '🍏', name: '青苹果' }, { icon: '🐶', name: '小狗' }, 
+            { icon: '🐱', name: '小猫' }, { icon: '🐭', name: '小老鼠' }, 
+            { icon: '🐹', name: '仓鼠' }, { icon: '🐰', name: '小兔子' }, 
+            { icon: '🦊', name: '狐狸' }, { icon: '🐻', name: '小熊' }, 
+            { icon: '🐼', name: '熊猫' }, { icon: '🐨', name: '考拉' }, 
+            { icon: '🐯', name: '老虎' }, { icon: '🦁', name: '狮子' }, 
+            { icon: '🐮', name: '小牛' }, { icon: '🐷', name: '小猪' }, 
+            { icon: '🐸', name: '青蛙' }, { icon: '🐵', name: '猴子' }
+        ];
 
         function getRandomRewardIcon() {
             return rewardIcons[Math.floor(Math.random() * rewardIcons.length)];
@@ -238,6 +255,35 @@
             }
         }
 
+        function speakText(text) {
+            // 如果浏览器支持语音合成
+            if ('speechSynthesis' in window) {
+                // 取消之前可能未完成的语音
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN'; // 中文
+                
+                // 尝试寻找中文女声
+                const voices = window.speechSynthesis.getVoices();
+                // 不同浏览器和系统提供的声音名称不同，尽量匹配带有女声或中文标志的声音
+                const femaleVoice = voices.find(voice => 
+                    voice.lang.includes('zh') && 
+                    (voice.name.includes('Xiaoxiao') || voice.name.includes('Ting-Ting') || voice.name.includes('female') || voice.name.includes('女'))
+                );
+                
+                if (femaleVoice) {
+                    utterance.voice = femaleVoice;
+                }
+                
+                // 稍微提高音调，让声音听起来更像女声/更活泼
+                utterance.pitch = 1.2;
+                utterance.rate = 1.0;
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
         function dig(event) {
             initAudio(); // 确保音频上下文在点击后激活
             const cell = event.target;
@@ -247,8 +293,11 @@
             cell.classList.add('dug');
             
             let displayIcon = item.emoji;
+            let iconName = '';
             if (item.type === 'coin' || item.type === 'gem') {
-                displayIcon = getRandomRewardIcon();
+                const reward = getRandomRewardIcon();
+                displayIcon = reward.icon;
+                iconName = reward.name;
             }
 
             if (item.type === 'bomb') {
@@ -260,7 +309,10 @@
                 const amount = parseFloat((Math.random() * 0.99 + 0.01).toFixed(2));
                 document.getElementById('message').innerText = item.msg + ` 获得 ¥${amount}`;
                 
+                // 播放获取奖励的音效
                 playSound(item.type);
+                // 语音播报物品名称
+                speakText(iconName);
 
                 // 弹出图标并飞向总金额处的动画特效
                 const cellRect = cell.getBoundingClientRect();
@@ -333,7 +385,18 @@
             nextRound();
         }
 
-        window.onload = initGame;
+        // 初始化语音合成，解决部分浏览器首次播报不发声的问题
+        function initSpeech() {
+            if ('speechSynthesis' in window) {
+                // 加载声音列表
+                window.speechSynthesis.getVoices();
+            }
+        }
+
+        window.onload = () => {
+            initSpeech();
+            initGame();
+        };
     </script>
 </body>
 </html>
