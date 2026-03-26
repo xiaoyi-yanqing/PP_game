@@ -11,6 +11,10 @@ body {
     overflow-y: auto; /* 允许竖向滚动，适配大网格不被截断 */
     transition: background 1s ease; /* 背景切换动画 */
     -webkit-tap-highlight-color: transparent; /* 消除 iOS 点击灰色背景 */
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
 }
 h1 { 
     color: #ff6b6b; 

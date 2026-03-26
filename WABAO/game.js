@@ -695,7 +695,26 @@ function showPhotoOverlay() {
     overlay.classList.add('show');
 }
 
+function initNoCopy() {
+    const allowSelection = (el) => {
+        if (!el || !el.tagName) return false;
+        const tag = el.tagName.toLowerCase();
+        return tag === 'input' || tag === 'textarea';
+    };
+    ['copy', 'cut', 'paste', 'contextmenu', 'dragstart'].forEach(evt => {
+        document.addEventListener(evt, (e) => {
+            if (allowSelection(e.target)) return;
+            e.preventDefault();
+        }, { passive: false });
+    });
+    document.addEventListener('selectstart', (e) => {
+        if (allowSelection(e.target)) return;
+        e.preventDefault();
+    }, { passive: false });
+}
+
 window.onload = () => {
+    initNoCopy();
     initSpeech();
     initFoxEasterEgg();
     initBunnyEasterEgg();
