@@ -376,7 +376,6 @@ function initSpeech() {
 // 彩蛋系统：百分烟花庆祝
 // ==========================================
 function triggerFireworks() {
-    // 播放礼花音效
     if (audioCtx) {
         for(let i=0; i<3; i++) {
             setTimeout(() => {
@@ -395,25 +394,50 @@ function triggerFireworks() {
         }
     }
     
-    // 弹出提示
     const msgEl = document.getElementById('message');
     msgEl.innerText = `🎆 哇！你的分数突破了 ${Math.floor(score/10)*10} 分！太棒啦！ 🎆`;
     msgEl.style.backgroundColor = '#8e44ad';
     
-    // 释放烟花
-    for (let i = 0; i < 5; i++) {
+    const colors = ['#ff4757','#fffa65','#1e90ff','#2ed573','#ff6b81','#a29bfe','#00d2d3','#f368e0'];
+    const bursts = 7 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < bursts; i++) {
         setTimeout(() => {
-            const firework = document.createElement('div');
-            firework.className = 'firework';
-            // 随机位置
-            firework.style.left = (20 + Math.random() * 60) + 'vw';
-            firework.style.top = (20 + Math.random() * 40) + 'vh';
-            // 随机大小和颜色偏移
-            firework.style.transform = `translate(-50%, -50%) scale(${0.5 + Math.random()})`;
-            document.body.appendChild(firework);
-            
-            setTimeout(() => firework.remove(), 1500);
-        }, i * 400);
+            const x = (15 + Math.random() * 70) / 100 * window.innerWidth;
+            const y = (20 + Math.random() * 50) / 100 * window.innerHeight;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const count = 24 + Math.floor(Math.random() * 12);
+            for (let j = 0; j < count; j++) {
+                const p = document.createElement('div');
+                p.className = 'fw-particle';
+                p.style.left = x + 'px';
+                p.style.top = y + 'px';
+                p.style.backgroundColor = color;
+                document.body.appendChild(p);
+                const angle = (Math.PI * 2) * (j / count) + Math.random() * 0.3;
+                const dist = 80 + Math.random() * 140;
+                const dx = Math.cos(angle) * dist;
+                const dy = Math.sin(angle) * dist + 30;
+                const dur = 900 + Math.random() * 700;
+                const s = 0.6 + Math.random() * 0.6;
+                const anim = p.animate([
+                    { transform: 'translate(-50%, -50%) scale(' + s + ')', opacity: 1 },
+                    { transform: 'translate(calc(-50% + ' + (dx * 0.9) + 'px), calc(-50% + ' + (dy * 0.9) + 'px)) scale(' + (s * 0.8) + ')', opacity: 0.9, offset: 0.6 },
+                    { transform: 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px)) scale(' + (s * 0.2) + ')', opacity: 0 }
+                ], { duration: dur, easing: 'cubic-bezier(.2,.6,.2,1)' });
+                anim.onfinish = () => p.remove();
+            }
+            const ring = document.createElement('div');
+            ring.className = 'fw-ring';
+            ring.style.left = x + 'px';
+            ring.style.top = y + 'px';
+            ring.style.color = color;
+            document.body.appendChild(ring);
+            const ringAnim = ring.animate([
+                { transform: 'translate(-50%, -50%) scale(0.2)', opacity: 0.8 },
+                { transform: 'translate(-50%, -50%) scale(1.2)', opacity: 0 }
+            ], { duration: 700, easing: 'ease-out' });
+            ringAnim.onfinish = () => ring.remove();
+        }, i * 180);
     }
 }
 

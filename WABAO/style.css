@@ -561,6 +561,26 @@ body {
     }
 }
 
+.fw-particle {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10001;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.9));
+}
+.fw-ring {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0.8;
+}
+
 /* =========================================
    彩蛋：兔子照片弹出层
    ========================================= */
