@@ -247,8 +247,7 @@ function dig(event) {
             score += amount;
             updateStats();
             
-            // 检查百分烟花彩蛋
-            checkHundredEasterEgg(oldScore, score);
+            checkTenMilestoneEgg(oldScore, score);
         };
 
     } else if (item.type === 'bomb') {
@@ -398,7 +397,7 @@ function triggerFireworks() {
     
     // 弹出提示
     const msgEl = document.getElementById('message');
-    msgEl.innerText = `🎆 哇！你的分数突破了 ${Math.floor(score/100)*100} 分！太棒啦！ 🎆`;
+    msgEl.innerText = `🎆 哇！你的分数突破了 ${Math.floor(score/10)*10} 分！太棒啦！ 🎆`;
     msgEl.style.backgroundColor = '#8e44ad';
     
     // 释放烟花
@@ -418,12 +417,10 @@ function triggerFireworks() {
     }
 }
 
-function checkHundredEasterEgg(oldVal, newVal) {
-    // 检查是否跨越了 100 的整数倍 (例如从 99 变成 101)
-    const oldHundred = Math.floor(oldVal / 100);
-    const newHundred = Math.floor(newVal / 100);
-    
-    if (newHundred > oldHundred && newHundred > 0) {
+function checkTenMilestoneEgg(oldVal, newVal) {
+    const oldTens = Math.floor(oldVal / 10);
+    const newTens = Math.floor(newVal / 10);
+    if (newTens > oldTens && newTens > 0) {
         triggerFireworks();
     }
 }
@@ -485,7 +482,7 @@ function initFoxEasterEgg() {
                 msgEl.innerText = '🦊 躲猫猫的狐狸被你发现了！送你 20 分！ 🦊';
                 msgEl.style.backgroundColor = '#d35400';
                 
-                checkHundredEasterEgg(oldScore, score);
+                checkTenMilestoneEgg(oldScore, score);
                 
                 // 3秒后狐狸恢复原样
                 setTimeout(() => {
