@@ -303,16 +303,16 @@ function nextRound() {
     document.getElementById('message').innerText = '新的一局开始啦！';
     document.body.classList.remove('shake');
     
-    // 随机切换可爱的背景主题
     const randomTheme = Math.floor(Math.random() * 5);
-    document.body.className = `bg-theme-${randomTheme}`;
+    Array.from(document.body.classList)
+        .filter(c => c.startsWith('bg-theme-'))
+        .forEach(c => document.body.classList.remove(c));
+    document.body.classList.add(`bg-theme-${randomTheme}`);
     
     const grid = document.getElementById('grid');
     
-    // 动态调整布局样式
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     
-    // 简单美化：根据列数自动调整最大宽度，同时适配 iPad 等大屏
     const isTablet = window.innerWidth >= 768;
     const cellWidth = isTablet ? 90 : 66; // 大屏格子更大
     const minWidth = isTablet ? 450 : 280;
@@ -330,6 +330,8 @@ function nextRound() {
         grid.appendChild(cell);
     }
     updateStats();
+    
+    lockScroll();
 }
 
 // 设置面板逻辑
@@ -711,6 +713,17 @@ function initNoCopy() {
         if (allowSelection(e.target)) return;
         e.preventDefault();
     }, { passive: false });
+}
+
+let __scrollLocked = false;
+function lockScroll() {
+    if (__scrollLocked) return;
+    __scrollLocked = true;
+    document.body.classList.add('no-scroll');
+    const block = (e) => e.preventDefault();
+    window.addEventListener('wheel', block, { passive: false });
+    window.addEventListener('touchmove', block, { passive: false });
+    window.scrollTo(0, 0);
 }
 
 window.onload = () => {

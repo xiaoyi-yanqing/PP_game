@@ -16,6 +16,10 @@ body {
     -ms-user-select: none;
     -webkit-touch-callout: none;
 }
+body.no-scroll {
+    overflow-y: hidden !important;
+    height: 100vh;
+}
 h1 { 
     color: #ff6b6b; 
     font-size: 2.5rem;
