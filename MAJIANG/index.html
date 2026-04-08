@@ -397,9 +397,6 @@
                             class="px-12 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full shadow-lg border-2 border-green-400 transition transform hover:scale-105 text-2xl tracking-widest animate-pulse">
                         出牌
                     </button>
-                    <div v-else class="text-yellow-400/80 text-lg font-bold flex items-center tracking-wider bg-black/40 px-6 py-2 rounded-full">
-                        请点击选择一张牌打出
-                    </div>
 
                     <button v-if="!isTing && (hand.length % 3 === 2)" @click="declareTing" 
                             :class="['px-8 py-2 font-bold rounded-full shadow-lg border-2 transition text-lg tracking-widest', pendingTing ? 'bg-yellow-500 border-yellow-400 text-white animate-pulse' : 'bg-red-600 hover:bg-red-500 text-white border-red-400']">
