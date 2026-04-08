@@ -8,6 +8,19 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <style>
+        /* 禁止滑动和复制的基础设置 */
+        html, body {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden; /* 禁止滚动条 */
+            overscroll-behavior: none; /* 禁止橡皮筋效果 */
+            touch-action: none; /* 禁止绝大多数默认触摸动作（缩放、双击等） */
+            user-select: none; /* 禁止选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            -webkit-touch-callout: none; /* 禁止长按弹出菜单 */
+        }
         body { font-family: 'Microsoft YaHei', sans-serif; }
         .mahjong-table {
             background: radial-gradient(circle, #2b6c3b 0%, #153e20 100%);
@@ -42,17 +55,156 @@
         .discard-tile {
             width: 34px; height: 48px; font-size: 1rem; border-bottom: 4px solid #4ade80;
         }
-        .seat-btn.active {
-            background-color: #f59e0b; color: white; border-color: #f59e0b;
+        .action-btn {
+            background: linear-gradient(to bottom, #fde047, #f59e0b);
+            border: 2px solid #b45309;
+            color: #78350f;
+            font-weight: bold;
+            font-size: 1.5rem;
+            padding: 10px 30px;
+            border-radius: 50px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        .action-btn:hover { transform: scale(1.05); }
+        .action-btn:active { transform: scale(0.95); }
+        .turn-indicator {
+            animation: glow 1.5s infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 10px #4ade80, 0 0 20px #4ade80; }
+            to { box-shadow: 0 0 20px #22c55e, 0 0 30px #22c55e; }
+        }
+        .out-tile {
+            transform: scale(0.7);
+            margin: -8px;
+        }
+        .out-tile-mini {
+            transform: scale(0.5);
+            margin: -12px;
+        }
+        .animate-draw {
+            animation: drawTileAnim 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes drawTileAnim {
+            0% { transform: translateY(-40px) scale(1.1); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        /* 财神（发财）彩蛋：满屏金币掉落动画 */
+        .coin-rain {
+            position: absolute;
+            top: -50px;
+            width: 30px;
+            height: 30px;
+            background: radial-gradient(circle, #fde047 30%, #eab308 100%);
+            border-radius: 50%;
+            border: 2px solid #ca8a04;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 0 5px #fff;
+            animation: fall linear forwards;
+            z-index: 100;
+        }
+        .coin-rain::after {
+            content: '财';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #b45309;
+            font-weight: bold;
+            font-size: 14px;
+            width: 100%; height: 100%;
+        }
+        @keyframes fall {
+            to { transform: translateY(120vh) rotate(360deg); }
+        }
+
+        /* 隐藏彩蛋：大厅的“财神模式” */
+        .god-of-wealth-mode {
+            background-image: url('https://www.transparenttextures.com/patterns/gold-scale.png') !important;
+            background-color: #7f1d1d !important; /* 喜庆的暗红色 */
+            transition: all 1s ease;
+        }
+        
+        /* 对手牌背样式 */
+        .tile-back-v {
+            width: 14px; height: 36px; background: #4ade80; border: 1px solid #166534; border-radius: 2px;
+            box-shadow: 2px 2px 2px rgba(0,0,0,0.3);
+        }
+        .tile-back-h {
+            width: 24px; height: 36px; background: #4ade80; border: 1px solid #166534; border-radius: 2px;
+            box-shadow: 0 4px 0 #fff, 0 5px 3px rgba(0,0,0,0.4);
+        }
+        /* 选中牌的样式 */
+        .selected-tile {
+            transform: translateY(-15px) !important;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.5) !important;
+            border: 2px solid #fde047;
+        }
+        .avatar-box {
+            width: 60px; height: 60px; border-radius: 12px;
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            border: 2px solid #60a5fa; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; font-size: 1.2rem;
+            position: relative;
+        }
+        .avatar-box.active-turn {
+            border-color: #fde047;
+            box-shadow: 0 0 15px #fde047;
+            animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 10px #fde047; }
+            50% { box-shadow: 0 0 25px #fde047, 0 0 10px #fff; }
+            100% { box-shadow: 0 0 10px #fde047; }
+        }
+        
+        /* 强制横屏适配样式 */
+        @media screen and (orientation: portrait) {
+            .force-landscape {
+                transform: rotate(-90deg);
+                transform-origin: center center;
+                width: 100vh !important;
+                height: 100vw !important;
+                position: absolute;
+                top: calc((100vh - 100vw) / 2);
+                left: calc((100vw - 100vh) / 2);
+                overflow: hidden;
+            }
+        }
+        @media screen and (orientation: landscape) {
+            .force-landscape {
+                width: 100vw !important;
+                height: 100vh !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+        }
+        /* 出牌堆样式 */
+        .discard-area-tile {
+            width: 24px; height: 34px; font-size: 0.8rem; border-bottom: 2px solid #4ade80;
+            margin: 1px;
+        }
+        .discard-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 1px;
         }
     </style>
 </head>
-<body class="bg-gray-100 h-screen w-screen overflow-hidden">
-    <div id="app" class="h-full w-full">
-        
+<body class="bg-gray-900 h-screen w-screen overflow-hidden m-0 p-0">
+    <div id="app" class="h-full w-full relative">
+        <!-- 满屏金币特效层 -->
+        <div v-if="showCoins" class="fixed inset-0 pointer-events-none z-[1000] overflow-hidden">
+            <div v-for="coin in coins" :key="coin.id" class="coin-rain" 
+                 :style="{ left: coin.left + '%', animationDuration: coin.duration + 's', animationDelay: coin.delay + 's', transform: 'scale(' + coin.scale + ')' }">
+            </div>
+        </div>
+
         <!-- 页面一：大厅 (Home) -->
-        <div v-if="view === 'home'" class="h-full flex flex-col items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-green-800">
-            <h1 class="text-6xl font-bold text-white mb-12 drop-shadow-lg tracking-widest">出风</h1>
+        <div v-if="view === 'home'" :class="['h-full flex flex-col items-center justify-center bg-[url(\'https://www.transparenttextures.com/patterns/cubes.png\')] bg-green-800 transition-all duration-1000', godMode ? 'god-of-wealth-mode' : '']">
+            <h1 class="text-6xl font-bold text-white mb-12 drop-shadow-lg tracking-widest">{{ godMode ? '🐉 恭喜发财 🐉' : '出风听牌' }}</h1>
             
             <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 space-y-6">
                 <!-- 新建房间 -->
@@ -67,7 +219,8 @@
                 <!-- 加入房间 -->
                 <div class="space-y-2">
                     <label class="block text-gray-700 font-bold">加入房间</label>
-                    <input v-model="joinPwd" type="password" placeholder="输入房间密码" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input v-model="joinRoomId" type="text" placeholder="输入房间号 (6位数字)" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-2">
+                    <input v-model="joinPwd" type="password" placeholder="输入房间密码 (如果没有则不填)" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                     <button @click="joinRoom" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition">加入房间</button>
                 </div>
             </div>
@@ -105,58 +258,192 @@
             </div>
         </div>
 
-        <!-- 页面三：游戏桌 (Game) -->
-        <div v-if="view === 'game'" class="h-full flex flex-col mahjong-table relative">
+        <!-- 页面三：游戏桌 (Game) - 强制横屏容器 -->
+        <div v-if="view === 'game'" class="force-landscape flex flex-col mahjong-table relative overflow-hidden select-none">
             <!-- 顶部信息 -->
-            <div class="absolute top-4 left-4 text-white/80 font-bold">
-                房间: {{ roomId }} | 你的位置: {{ mySeat }}风 | 状态: <span class="text-yellow-400">{{ isTing ? '已报听' : '行牌中' }}</span>
+            <div class="absolute top-2 left-4 text-white/60 font-bold z-50 text-sm flex items-center gap-4">
+                <button v-if="mySeat === '东'" @click="restartGame" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded shadow-lg border border-yellow-400 pointer-events-auto transition">再来一局</button>
+                <span>房间: {{ roomId }} | 你的位置: <span class="text-yellow-400 text-lg">{{ mySeat }}风</span> | 状态: <span class="text-yellow-400">{{ isTing ? '已报听' : '行牌中' }}</span></span>
             </div>
 
-            <div class="absolute top-4 right-4 text-white/80 font-bold">
-                牌库剩余: {{ gameState.deckCount }} 张 | 当前出牌: <span class="text-yellow-400 text-xl">{{ gameState.currentTurn }}风</span>
+            <div class="absolute top-2 right-4 text-white/60 font-bold z-50 text-sm">
+                牌库剩余: <span class="text-white text-lg">{{ gameState.deckCount }}</span> 张
             </div>
 
-            <!-- 打出的牌堆 (模拟) -->
-            <div class="flex-1 flex items-center justify-center p-10">
-                <div class="bg-black/20 p-6 rounded-xl flex flex-wrap gap-2 content-start w-2/3 h-64 overflow-y-auto">
-                    <div v-for="(tile, idx) in gameState.discardPile" :key="idx" 
-                         :class="['mahjong-tile discard-tile', getTileClass(tile)]">
-                        {{ tile }}
+            <!-- 对手玩家区域 (象征性显示，靠边贴紧) -->
+            <!-- 上方玩家 (Top - 对家) -->
+            <div v-if="getRelativePlayer(2)" class="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center z-10 gap-2">
+                <div class="flex flex-row items-center gap-4 bg-black/20 px-4 py-1 rounded-b-xl border-b border-white/10">
+                    <div :class="['avatar-box w-[40px] h-[40px] text-sm', gameState.currentTurn === getRelativePlayer(2).seat ? 'active-turn' : '']">
+                        {{ getRelativePlayer(2).seat }}
+                        <span v-if="getRelativePlayer(2).isTing" class="absolute -top-1 -right-1 bg-red-600 text-[10px] px-1 rounded-full shadow">听</span>
                     </div>
-                    <div v-if="!gameState.discardPile || gameState.discardPile.length === 0" class="text-white/30 text-2xl m-auto">出牌区</div>
+                    <!-- 碰杠区 -->
+                    <div v-if="getRelativePlayer(2).outTiles.length > 0" class="flex gap-1 bg-black/30 p-1 rounded">
+                        <div v-for="(group, idx) in getRelativePlayer(2).outTiles" :key="idx" class="flex">
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-0.5 opacity-80">
+                        <div v-for="n in getRelativePlayer(2).handCount" :key="'t-'+n" class="tile-back-h w-[16px] h-[24px]"></div>
+                    </div>
                 </div>
+                <!-- 出牌区 (对家前方) -->
+                <div class="bg-black/30 p-1 rounded-md">
+                    <div class="discard-grid">
+                        <div v-for="(tile, idx) in getRelativePlayer(2).discards" :key="'dt2-'+idx" 
+                             :class="['mahjong-tile discard-area-tile transform rotate-180', getTileClass(tile)]">
+                            {{ tile }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 左侧玩家 (Left - 上家) -->
+            <div v-if="getRelativePlayer(3)" class="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-row items-center z-10 gap-2">
+                <div class="flex flex-col items-center gap-4 bg-black/20 px-1 py-4 rounded-r-xl border-r border-white/10">
+                    <div :class="['avatar-box w-[40px] h-[40px] text-sm', gameState.currentTurn === getRelativePlayer(3).seat ? 'active-turn' : '']">
+                        {{ getRelativePlayer(3).seat }}
+                        <span v-if="getRelativePlayer(3).isTing" class="absolute -top-1 -right-1 bg-red-600 text-[10px] px-1 rounded-full shadow">听</span>
+                    </div>
+                    <!-- 碰杠区 -->
+                    <div v-if="getRelativePlayer(3).outTiles.length > 0" class="flex flex-col gap-1 bg-black/30 p-1 rounded">
+                        <div v-for="(group, idx) in getRelativePlayer(3).outTiles" :key="idx" class="flex">
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-0.5 opacity-80">
+                        <div v-for="n in getRelativePlayer(3).handCount" :key="'l-'+n" class="tile-back-v w-[24px] h-[16px]"></div>
+                    </div>
+                </div>
+                <!-- 出牌区 (上家前方) -->
+                <div class="bg-black/30 p-1 rounded-md">
+                    <div class="discard-grid" style="grid-template-columns: repeat(4, 1fr);">
+                        <div v-for="(tile, idx) in getRelativePlayer(3).discards" :key="'dt3-'+idx" 
+                             :class="['mahjong-tile discard-area-tile transform rotate-90', getTileClass(tile)]">
+                            {{ tile }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧玩家 (Right - 下家) -->
+            <div v-if="getRelativePlayer(1)" class="absolute right-4 top-1/2 transform -translate-y-1/2 flex flex-row-reverse items-center z-10 gap-2">
+                <div class="flex flex-col items-center gap-4 bg-black/20 px-1 py-4 rounded-l-xl border-l border-white/10">
+                    <div :class="['avatar-box w-[40px] h-[40px] text-sm', gameState.currentTurn === getRelativePlayer(1).seat ? 'active-turn' : '']">
+                        {{ getRelativePlayer(1).seat }}
+                        <span v-if="getRelativePlayer(1).isTing" class="absolute -top-1 -right-1 bg-red-600 text-[10px] px-1 rounded-full shadow">听</span>
+                    </div>
+                    <!-- 碰杠区 -->
+                    <div v-if="getRelativePlayer(1).outTiles.length > 0" class="flex flex-col gap-1 bg-black/30 p-1 rounded">
+                        <div v-for="(group, idx) in getRelativePlayer(1).outTiles" :key="idx" class="flex">
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-0.5 opacity-80">
+                        <div v-for="n in getRelativePlayer(1).handCount" :key="'r-'+n" class="tile-back-v w-[24px] h-[16px]"></div>
+                    </div>
+                </div>
+                <!-- 出牌区 (下家前方) -->
+                <div class="bg-black/30 p-1 rounded-md">
+                    <div class="discard-grid" style="grid-template-columns: repeat(4, 1fr);">
+                        <div v-for="(tile, idx) in getRelativePlayer(1).discards" :key="'dt1-'+idx" 
+                             :class="['mahjong-tile discard-area-tile transform -rotate-90', getTileClass(tile)]">
+                            {{ tile }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 自己 (Bottom) 的出牌区 -->
+            <div class="absolute bottom-[110px] left-1/2 transform -translate-x-1/2 z-10">
+                <div class="bg-black/30 p-2 rounded-lg" v-if="myPlayerInfo && myPlayerInfo.discards.length > 0">
+                    <div class="discard-grid" style="grid-template-columns: repeat(10, 1fr);">
+                        <div v-for="(tile, idx) in myPlayerInfo.discards" :key="'dt0-'+idx" 
+                             :class="['mahjong-tile discard-area-tile', getTileClass(tile)]">
+                            {{ tile }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中心轮次提示 (去除了统一的出牌区) -->
+            <div class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center">
+                <!-- 轮次发光字 -->
+                <div :class="['text-3xl font-black drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] mb-4 transition-all duration-300', 
+                              gameState.currentTurn === mySeat ? 'text-green-400 turn-indicator scale-110' : 'text-white/40']">
+                    {{ gameState.currentTurn }}风 {{ gameState.currentTurn === mySeat ? '出牌' : '' }}
+                </div>
+            </div>
+
+            <!-- 动作按钮区 (碰 杠 胡 等) -->
+            <div v-if="availableActions.length > 0" class="absolute bottom-[160px] left-1/2 transform -translate-x-1/2 flex space-x-6 z-50 bg-black/60 px-8 py-4 rounded-full backdrop-blur-sm">
+                <button v-for="(action, i) in availableActions" :key="i"
+                        @click="doAction(action)"
+                        class="action-btn">
+                    {{ formatActionName(action.type) }}
+                </button>
+                <button @click="doAction({type: 'pass'})" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-full border-2 border-gray-400">过</button>
             </div>
 
             <!-- 操作按钮区 -->
-            <div class="flex justify-center space-x-6 mb-4 h-12">
-                <div v-if="gameState.currentTurn !== mySeat" class="text-white text-xl font-bold flex items-center">等待 {{ gameState.currentTurn }}风 操作...</div>
+            <div class="absolute bottom-[120px] left-0 w-full flex justify-center space-x-6 z-50">
+                <div v-if="gameState.currentTurn !== mySeat" class="text-white/60 text-lg font-bold flex items-center tracking-wider bg-black/40 px-6 py-2 rounded-full">
+                    ... 等待其他玩家操作 ...
+                </div>
                 
                 <template v-if="gameState.currentTurn === mySeat">
-                    <button v-if="!isTing && hand.length < 14" @click="drawTile" class="px-8 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg shadow border-2 border-blue-400 transition transform hover:scale-105 animate-bounce">摸牌</button>
-                    
-                    <button v-if="!isTing && hand.length === 14" @click="declareTing" 
-                            :class="['px-6 py-2 font-bold rounded-lg shadow border-2 transition', pendingTing ? 'bg-yellow-500 border-yellow-400 text-white animate-pulse' : 'bg-red-600 hover:bg-red-700 text-white border-red-500']">
-                        {{ pendingTing ? '请点击你要打出的风牌...' : '报听 (必须出风)' }}
+                    <button v-if="selectedTileIndex !== null" @click="discardTile" 
+                            class="px-12 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full shadow-lg border-2 border-green-400 transition transform hover:scale-105 text-2xl tracking-widest animate-pulse">
+                        出牌
                     </button>
-                    <button v-if="pendingTing" @click="pendingTing = false" class="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-bold transition">取消报听</button>
+                    <div v-else class="text-yellow-400/80 text-lg font-bold flex items-center tracking-wider bg-black/40 px-6 py-2 rounded-full">
+                        请点击选择一张牌打出
+                    </div>
+
+                    <button v-if="!isTing && (hand.length % 3 === 2)" @click="declareTing" 
+                            :class="['px-8 py-2 font-bold rounded-full shadow-lg border-2 transition text-lg tracking-widest', pendingTing ? 'bg-yellow-500 border-yellow-400 text-white animate-pulse' : 'bg-red-600 hover:bg-red-500 text-white border-red-400']">
+                        {{ pendingTing ? '点击风牌后点出牌...' : '报 听' }}
+                    </button>
+                    <button v-if="pendingTing" @click="cancelTing" class="px-6 py-2 bg-gray-500 hover:bg-gray-400 text-white rounded-full font-bold transition">取消</button>
                 </template>
                 
-                <button @click="exitGame" class="absolute bottom-4 right-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded shadow text-sm">退出房间</button>
+                <button @click="exitGame" class="absolute right-4 px-6 py-2 bg-gray-700/50 hover:bg-gray-600 text-white/80 rounded shadow text-sm pointer-events-auto">退出对局</button>
             </div>
 
-            <!-- 玩家手牌 -->
-            <div class="h-32 bg-black/40 flex items-end justify-center pb-4 px-10 gap-1 rounded-t-2xl mx-20">
-                <div v-for="(tile, index) in hand" :key="index" 
-                     @click="discardTile(index)"
-                     :class="['mahjong-tile', getTileClass(tile), pendingTing && !isWind(tile) ? 'opacity-50 cursor-not-allowed' : '']">
-                    {{ tile }}
+            <!-- 玩家牌区 (包含吃碰杠和手牌) 绝对定位在底部 -->
+            <div class="absolute bottom-0 left-0 w-full h-[100px] bg-black/50 flex flex-row items-end justify-center pb-4 px-10 gap-6 rounded-t-3xl border-t border-white/10 z-40">
+                <!-- 碰/杠 区 -->
+                <div v-if="outTiles.length > 0" class="flex gap-4 border-r border-white/20 pr-6 shrink-0">
+                    <div v-for="(group, idx) in outTiles" :key="idx" class="flex flex-row items-center bg-black/30 p-1 rounded">
+                        <div class="flex">
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
+                                 :class="['mahjong-tile out-tile', getTileClass(group.tile)]">
+                                {{ group.tile }}
+                            </div>
+                        </div>
+                        <div class="text-xs text-white/50 self-end ml-1">{{ formatActionName(group.type) }}</div>
+                    </div>
+                </div>
+
+                <!-- 手牌区 -->
+                <div class="flex gap-1 relative shrink-0">
+                    <div v-for="(tile, index) in hand" :key="index" 
+                         @click="selectTile(index)"
+                         :class="['mahjong-tile', getTileClass(tile), 
+                                  isTing && index !== hand.length - 1 ? 'opacity-50 grayscale' : '',
+                                  pendingTing && !isWind(tile) ? 'opacity-30 cursor-not-allowed grayscale' : '',
+                                  gameState.currentTurn === mySeat && index === hand.length - 1 && hand.length % 3 === 2 ? 'ml-4' : '',
+                                  isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
+                                  selectedTileIndex === index ? 'selected-tile' : '']">
+                        {{ tile }}
+                    </div>
                 </div>
             </div>
-            
-            <!-- 提示弹窗 -->
-            <div v-if="msg" class="absolute top-1/3 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-8 py-4 rounded-xl text-xl font-bold shadow-2xl z-50 transition-opacity duration-300">
-                {{ msg }}
-            </div>
+        
+        <!-- 提示弹窗 -->
+        <div v-if="msg" class="absolute top-1/4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-8 py-4 rounded-xl text-xl font-bold shadow-2xl z-50 transition-opacity duration-300">
+            {{ msg }}
         </div>
     </div>
 
@@ -169,6 +456,7 @@
                 const view = ref('home');
                 const createPwd = ref('');
                 const joinPwd = ref('');
+                const joinRoomId = ref('');
                 const roomId = ref('');
                 const mySeat = ref(null);
                 
@@ -176,12 +464,33 @@
                 const roomInfo = ref({ seats: {} });
                 const gameState = ref({ deckCount: 0, discardPile: [], currentTurn: '' });
                 const hand = ref([]);
+                const outTiles = ref([]); // 记录碰、杠的牌区
                 const isTing = ref(false);
                 const pendingTing = ref(false);
                 const msg = ref('');
                 const waitingMsg = ref('');
+                const availableActions = ref([]); // 可以进行的操作列表
+                const isDrawing = ref(false); // 是否正在播放摸牌动画
+                const selectedTileIndex = ref(null); // 当前选中的牌索引
+
+                // 彩蛋状态
+                const showCoins = ref(false);
+                const coins = ref([]);
+                const godMode = ref(false);
 
                 const winds = ['东', '南', '西', '北'];
+
+                // 监听密码输入触发彩蛋
+                Vue.watch([createPwd, joinPwd], ([newCreate, newJoin]) => {
+                    if (newCreate === '888888' || newJoin === '888888') {
+                        if (!godMode.value) {
+                            godMode.value = true;
+                            showMsg("恭喜发财！已开启财神模式 🐉");
+                        }
+                    } else {
+                        godMode.value = false;
+                    }
+                });
 
                 const showMsg = (text) => {
                     msg.value = text;
@@ -202,8 +511,10 @@
 
                     socket.on('gameStarted', (data) => {
                         hand.value = data.hand;
+                        outTiles.value = data.outTiles || [];
                         isTing.value = data.isTing;
                         pendingTing.value = false;
+                        availableActions.value = [];
                         view.value = 'game';
                     });
 
@@ -213,10 +524,32 @@
 
                     socket.on('handUpdated', (data) => {
                         hand.value = data.hand;
-                        if (data.isTing !== undefined) {
-                            isTing.value = data.isTing;
+                        if (data.outTiles) outTiles.value = data.outTiles;
+                        if (data.isTing !== undefined) isTing.value = data.isTing;
+                        
+                        selectedTileIndex.value = null; // 每次手牌更新后取消选中状态
+
+                        // 如果不是刚摸牌（比如是碰杠之后），或者是别人出牌导致我手牌更新，再理牌
+                        // 如果是刚摸牌，我们暂不理牌，保留在最后一张，并附带动画
+                        if (!data.drawAnimation) {
+                            sortHand();
                         }
-                        sortHand();
+                        
+                        if (data.drawAnimation) {
+                            // 触发动画状态
+                            isDrawing.value = true;
+                            setTimeout(() => {
+                                isDrawing.value = false;
+                            }, 400); // 动画时长 0.4s
+                        }
+                    });
+
+                    socket.on('availableActions', (actions) => {
+                        availableActions.value = actions;
+                    });
+
+                    socket.on('roomMessage', (message) => {
+                        showMsg(message);
                     });
 
                     socket.on('playerTing', (data) => {
@@ -246,10 +579,10 @@
                 };
 
                 const joinRoom = () => {
-                    if(!joinPwd.value) return showMsg("请输入房间密码！");
-                    socket.emit('joinRoom', { roomId: joinPwd.value, password: joinPwd.value }, (res) => {
+                    if(!joinRoomId.value) return showMsg("请输入要加入的房间号！");
+                    socket.emit('joinRoom', { roomId: joinRoomId.value, password: joinPwd.value }, (res) => {
                          if (res.success) {
-                             roomId.value = joinPwd.value;
+                             roomId.value = joinRoomId.value;
                              roomInfo.value = res.roomInfo;
                              view.value = 'room';
                          } else {
@@ -280,6 +613,12 @@
                     }
                 };
 
+                const restartGame = () => {
+                    if(confirm("确定要结束当前牌局并重新开一局吗？")) {
+                        socket.emit('restartGame', { roomId: roomId.value });
+                    }
+                };
+
                 const sortHand = () => {
                     hand.value.sort((a, b) => {
                         const typeA = winds.includes(a) ? 3 : a.includes('索') ? 2 : a.includes('筒') ? 1 : 0;
@@ -299,28 +638,134 @@
                     return '';
                 };
 
+                const getWallStacks = (wallIndex) => {
+                    // 总共124张牌，62墩。我们让它在界面上分成四面墙显示。
+                    // 假设每面墙分配 16 墩。
+                    const totalStacks = Math.ceil(gameState.value.deckCount / 2);
+                    const w3 = Math.min(16, totalStacks); // 左墙
+                    const w2 = Math.min(16, Math.max(0, totalStacks - 16)); // 上墙
+                    const w1 = Math.min(16, Math.max(0, totalStacks - 32)); // 右墙
+                    const w0 = Math.min(16, Math.max(0, totalStacks - 48)); // 下墙
+                    const walls = [w0, w1, w2, w3];
+                    return walls[wallIndex] || 0;
+                };
+
+                const getRelativePlayer = (relativeIndex) => {
+                    // relativeIndex: 0=自己(下家,已在底部渲染), 1=右家(下家), 2=对家, 3=左家(上家)
+                    if (!gameState.value.players || !mySeat.value) return null;
+                    // 麻将中，座位的逆时针顺序是 东->南->西->北
+                    // 出牌顺序也是 东->南->西->北。所以“右家(下家)”应该是数组里的下一个。
+                    const seatOrder = ['东', '南', '西', '北'];
+                    const myIdx = seatOrder.indexOf(mySeat.value);
+                    const targetSeat = seatOrder[(myIdx + relativeIndex) % 4];
+                    const playerInfo = gameState.value.players[targetSeat];
+                    
+                    // 只有当该座位上有玩家时才返回信息
+                    if (playerInfo && roomInfo.value.seats[targetSeat]) {
+                        return playerInfo;
+                    }
+                    return null;
+                };
+
+                const visibleDiscardPile = Vue.computed(() => {
+                    const pile = gameState.value.discardPile || [];
+                    return pile.slice(-24); // 只显示最近的 24 张牌
+                });
+
+                const myPlayerInfo = Vue.computed(() => {
+                    if (!gameState.value.players || !mySeat.value) return null;
+                    return gameState.value.players[mySeat.value];
+                });
+
                 const drawTile = () => {
                     socket.emit('drawTile', { roomId: roomId.value });
                 };
 
+                const doAction = (action) => {
+                    socket.emit('playerAction', {
+                        roomId: roomId.value,
+                        actionType: action.type,
+                        tile: action.tile
+                    });
+                    availableActions.value = []; // 点击后隐藏按钮
+                };
+
+                const formatActionName = (type) => {
+                    const map = {
+                        'peng': '碰',
+                        'gang': '杠',
+                        'angang': '暗杠',
+                        'jiagang': '加杠',
+                        'hu': '胡'
+                    };
+                    return map[type] || type;
+                };
+
                 const declareTing = () => {
-                    if (hand.value.length < 14) return showMsg("必须摸牌（满14张）后才能报听！");
+                    if (hand.value.length % 3 !== 2) return showMsg("只能在轮到你出牌时报听！");
                     pendingTing.value = true;
+                    selectedTileIndex.value = null; // 报听时重置选中状态，防止错打
                     showMsg("请选择一张风牌打出以完成报听");
                 };
 
-                const discardTile = (index) => {
+                const cancelTing = () => {
+                    pendingTing.value = false;
+                    selectedTileIndex.value = null; // 取消时也重置选中状态，修复出牌 bug
+                };
+
+                const selectTile = (index) => {
+                    if (gameState.value.currentTurn !== mySeat.value) return;
+                    if (hand.value.length % 3 !== 2) return;
+                    
+                    // 听牌后不能切换选中的牌，只能是最后一张刚摸的牌
+                    if (isTing.value && index !== hand.value.length - 1) return;
+
+                    selectedTileIndex.value = index;
+                };
+
+                const triggerCoinRain = () => {
+                    showCoins.value = true;
+                    // 生成金币
+                    const newCoins = [];
+                    for (let i = 0; i < 50; i++) {
+                        newCoins.push({
+                            id: Date.now() + i,
+                            left: Math.random() * 100, // 0-100vw
+                            duration: 1.5 + Math.random() * 2, // 1.5-3.5s
+                            delay: Math.random() * 1.5, // 0-1.5s
+                            scale: 0.5 + Math.random() * 0.8
+                        });
+                    }
+                    coins.value = newCoins;
+                    showMsg("财源广进！");
+                    
+                    // 动画结束后清理
+                    setTimeout(() => {
+                        showCoins.value = false;
+                        coins.value = [];
+                    }, 5000);
+                };
+
+                const discardTile = () => {
+                    if (selectedTileIndex.value === null) return;
+                    const index = selectedTileIndex.value;
+
                     if (gameState.value.currentTurn !== mySeat.value) {
                         return showMsg("还没轮到你出牌！");
                     }
-                    if (hand.value.length !== 14) {
-                        return showMsg("请先摸牌！");
+                    if (hand.value.length % 3 !== 2) {
+                        return showMsg("请先摸牌，或者你已经出过牌了！");
                     }
                     
                     const tile = hand.value[index];
                     
                     if (pendingTing.value && !isWind(tile)) {
                          return showMsg("【规则限制】报听时必须打出风牌！");
+                    }
+
+                    // 触发发财彩蛋
+                    if (tile === '发财') {
+                        triggerCoinRain();
                     }
 
                     socket.emit('discardTile', { 
@@ -330,13 +775,15 @@
                     });
                     
                     pendingTing.value = false;
+                    selectedTileIndex.value = null;
                 };
 
                 return {
-                    view, createPwd, joinPwd, roomId, mySeat, roomInfo, gameState,
-                    createRoom, joinRoom, selectSeat, ready, exitGame,
-                    hand, isTing, pendingTing, msg, waitingMsg,
-                    drawTile, declareTing, discardTile, isWind, getTileClass
+                    view, createPwd, joinPwd, joinRoomId, roomId, mySeat, roomInfo, gameState,
+                    createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
+                    hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
+                    showCoins, coins, godMode,
+                    drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };
             }
         }).mount('#app');
