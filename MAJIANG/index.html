@@ -456,10 +456,9 @@
                 // 目前为了保证你在本地手机测试可用，我们先尝试自动获取局域网 IP
                 const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' 
                     ? 'http://localhost:3000' 
-                    : `http://${window.location.hostname}:3000`; // 假设后端和前端在同一个机器的 3000 端口
+                    : `https://pp-game-majiang.onrender.com`; // 已经替换为您部署的 Render 后端地址
                 
-                // 如果您已经部署了公网后端，请直接将下一行解开注释并填入您的公网后端地址：
-                // const socket = io('https://your-backend-app.herokuapp.com');
+                // 连接到后端服务器
                 const socket = io(serverUrl); 
 
                 const view = ref('home');
