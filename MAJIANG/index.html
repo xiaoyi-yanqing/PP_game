@@ -449,7 +449,19 @@
 
         createApp({
             setup() {
-                const socket = io('http://localhost:3000'); // 明确指定连接地址，支持直接打开 html 文件
+                // 根据当前页面协议自动判断：如果是本地 file:// 打开则连 localhost，否则连相对路径（需要后端配置支持或者填写你的真实服务器地址）
+                // 由于 Github Pages 是纯静态托管，不支持运行 Node.js 后端。
+                // 如果您想在 Github Pages 上联机玩，需要将 server.js 部署到一个公网服务器（如 Render, Heroku 等），
+                // 然后把这里的地址换成那个公网服务器的地址。
+                // 目前为了保证你在本地手机测试可用，我们先尝试自动获取局域网 IP
+                const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:' 
+                    ? 'http://localhost:3000' 
+                    : `http://${window.location.hostname}:3000`; // 假设后端和前端在同一个机器的 3000 端口
+                
+                // 如果您已经部署了公网后端，请直接将下一行解开注释并填入您的公网后端地址：
+                // const socket = io('https://your-backend-app.herokuapp.com');
+                const socket = io(serverUrl); 
+
                 const view = ref('home');
                 const createPwd = ref('');
                 const joinPwd = ref('');
