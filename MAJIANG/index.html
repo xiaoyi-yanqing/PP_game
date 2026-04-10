@@ -281,7 +281,9 @@
                     <!-- 碰杠区 -->
                     <div v-if="getRelativePlayer(2).outTiles.length > 0" class="flex gap-1 bg-black/30 p-1 rounded">
                         <div v-for="(group, idx) in getRelativePlayer(2).outTiles" :key="idx" class="flex">
-                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">
+                                <img :src="getTileImage(group.tile)" class="w-full h-full object-contain pointer-events-none p-[2px]" />
+                            </div>
                         </div>
                     </div>
                     <div class="flex gap-0.5 opacity-80">
@@ -293,7 +295,7 @@
                     <div class="discard-grid">
                         <div v-for="(tile, idx) in getRelativePlayer(2).discards" :key="'dt2-'+idx" 
                              :class="['mahjong-tile discard-area-tile transform rotate-180', getTileClass(tile)]">
-                            {{ tile }}
+                            <img :src="getTileImage(tile)" class="w-full h-full object-contain pointer-events-none p-0.5" />
                         </div>
                     </div>
                 </div>
@@ -309,7 +311,9 @@
                     <!-- 碰杠区 -->
                     <div v-if="getRelativePlayer(3).outTiles.length > 0" class="flex flex-col gap-1 bg-black/30 p-1 rounded">
                         <div v-for="(group, idx) in getRelativePlayer(3).outTiles" :key="idx" class="flex">
-                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">
+                                <img :src="getTileImage(group.tile)" class="w-full h-full object-contain pointer-events-none p-[2px]" />
+                            </div>
                         </div>
                     </div>
                     <div class="flex flex-col gap-0.5 opacity-80">
@@ -321,7 +325,7 @@
                     <div class="discard-grid" style="grid-template-columns: repeat(4, 1fr);">
                         <div v-for="(tile, idx) in getRelativePlayer(3).discards" :key="'dt3-'+idx" 
                              :class="['mahjong-tile discard-area-tile transform rotate-90', getTileClass(tile)]">
-                            {{ tile }}
+                            <img :src="getTileImage(tile)" class="w-full h-full object-contain pointer-events-none p-0.5" />
                         </div>
                     </div>
                 </div>
@@ -337,7 +341,9 @@
                     <!-- 碰杠区 -->
                     <div v-if="getRelativePlayer(1).outTiles.length > 0" class="flex flex-col gap-1 bg-black/30 p-1 rounded">
                         <div v-for="(group, idx) in getRelativePlayer(1).outTiles" :key="idx" class="flex">
-                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">{{ group.tile }}</div>
+                            <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" :class="['mahjong-tile out-tile-mini', getTileClass(group.tile)]">
+                                <img :src="getTileImage(group.tile)" class="w-full h-full object-contain pointer-events-none p-[2px]" />
+                            </div>
                         </div>
                     </div>
                     <div class="flex flex-col gap-0.5 opacity-80">
@@ -349,7 +355,7 @@
                     <div class="discard-grid" style="grid-template-columns: repeat(4, 1fr);">
                         <div v-for="(tile, idx) in getRelativePlayer(1).discards" :key="'dt1-'+idx" 
                              :class="['mahjong-tile discard-area-tile transform -rotate-90', getTileClass(tile)]">
-                            {{ tile }}
+                            <img :src="getTileImage(tile)" class="w-full h-full object-contain pointer-events-none p-0.5" />
                         </div>
                     </div>
                 </div>
@@ -361,7 +367,7 @@
                     <div class="discard-grid" style="grid-template-columns: repeat(10, 1fr);">
                         <div v-for="(tile, idx) in myPlayerInfo.discards" :key="'dt0-'+idx" 
                              :class="['mahjong-tile discard-area-tile', getTileClass(tile)]">
-                            {{ tile }}
+                            <img :src="getTileImage(tile)" class="w-full h-full object-contain pointer-events-none p-0.5" />
                         </div>
                     </div>
                 </div>
@@ -416,7 +422,7 @@
                         <div class="flex">
                             <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
                                  :class="['mahjong-tile out-tile', getTileClass(group.tile)]">
-                                {{ group.tile }}
+                                <img :src="getTileImage(group.tile)" class="w-[85%] h-[85%] object-contain pointer-events-none" />
                             </div>
                         </div>
                         <div class="text-xs text-white/50 self-end ml-1">{{ formatActionName(group.type) }}</div>
@@ -427,13 +433,18 @@
                 <div class="flex gap-1 relative shrink-0">
                     <div v-for="(tile, index) in hand" :key="index" 
                          @click="selectTile(index)"
+                         draggable="true"
+                         @dragstart="onDragStart($event, index)"
+                         @dragover="onDragOver($event)"
+                         @drop="onDrop($event, index)"
+                         @dragenter.prevent
                          :class="['mahjong-tile', getTileClass(tile), 
                                   isTing && index !== hand.length - 1 ? 'opacity-50 grayscale' : '',
                                   pendingTing && !isWind(tile) ? 'opacity-30 cursor-not-allowed grayscale' : '',
                                   gameState.currentTurn === mySeat && index === hand.length - 1 && hand.length % 3 === 2 ? 'ml-4' : '',
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
                                   selectedTileIndex === index ? 'selected-tile' : '']">
-                        {{ tile }}
+                        <img :src="getTileImage(tile)" class="w-[85%] h-[85%] object-contain pointer-events-none" />
                     </div>
                 </div>
             </div>
@@ -486,7 +497,7 @@
                 const coins = ref([]);
                 const godMode = ref(false);
 
-                const winds = ['东', '南', '西', '北'];
+                const winds = ['东', '南', '西', '北', '红中', '发财', '白板'];
 
                 // 监听密码输入触发彩蛋
                 Vue.watch([createPwd, joinPwd], ([newCreate, newJoin]) => {
@@ -628,16 +639,42 @@
                 };
 
                 const sortHand = () => {
+                    const valueMap = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+                    const windMap = { '东':1, '南':2, '西':3, '北':4, '红中':5, '发财':6, '白板':7 };
+                    
                     hand.value.sort((a, b) => {
                         const typeA = winds.includes(a) ? 3 : a.includes('索') ? 2 : a.includes('筒') ? 1 : 0;
                         const typeB = winds.includes(b) ? 3 : b.includes('索') ? 2 : b.includes('筒') ? 1 : 0;
                         if(typeA !== typeB) return typeA - typeB;
-                        return a.localeCompare(b);
+                        
+                        if (typeA === 3) {
+                            return windMap[a] - windMap[b];
+                        } else {
+                            const valA = valueMap[a.charAt(0)] || 0;
+                            const valB = valueMap[b.charAt(0)] || 0;
+                            return valA - valB;
+                        }
                     });
                 };
 
                 const isWind = (tile) => winds.includes(tile);
                 
+                // 将文字牌映射为真实麻将图片（使用开源麻将素材库）
+                const getTileImage = (tile) => {
+                    if (!tile) return '';
+                    const baseUrl = 'https://raw.githubusercontent.com/FluffyFishGames/mahjong-assets/master/styles/normal/tiles/';
+                    const valueMap = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+                    
+                    if (tile.includes('万')) return `${baseUrl}Man${valueMap[tile.charAt(0)]}.svg`;
+                    if (tile.includes('筒')) return `${baseUrl}Pin${valueMap[tile.charAt(0)]}.svg`;
+                    if (tile.includes('索')) return `${baseUrl}Sou${valueMap[tile.charAt(0)]}.svg`;
+                    
+                    const windMap = { '东':'Ton', '南':'Nan', '西':'Shaa', '北':'Pei', '红中':'Chun', '发财':'Hatsu', '白板':'Haku' };
+                    if (winds.includes(tile)) return `${baseUrl}${windMap[tile]}.svg`;
+                    
+                    return '';
+                };
+
                 const getTileClass = (tile) => {
                     if(isWind(tile)) return 'wind';
                     if(tile.includes('万')) return 'wan';
@@ -786,12 +823,66 @@
                     selectedTileIndex.value = null;
                 };
 
+                // 拖拽相关状态
+                const draggedTileIndex = ref(null);
+                
+                const onDragStart = (e, index) => {
+                    // 听牌状态下不允许拖拽改变牌序
+                    if (isTing.value) {
+                        e.preventDefault();
+                        return;
+                    }
+                    draggedTileIndex.value = index;
+                    // 设置拖拽时的透明度
+                    setTimeout(() => {
+                        if (e.target) e.target.style.opacity = '0.5';
+                    }, 0);
+                };
+
+                const onDragOver = (e) => {
+                    e.preventDefault(); // 必须调用 preventDefault 才能触发 drop
+                };
+
+                const onDrop = (e, index) => {
+                    e.preventDefault();
+                    if (draggedTileIndex.value === null || draggedTileIndex.value === index) {
+                        // 恢复透明度
+                        const draggedEl = document.querySelector('.opacity-50');
+                        if (draggedEl) draggedEl.style.opacity = '1';
+                        return;
+                    }
+                    
+                    // 将拖拽的牌从原位置移除并插入到新位置
+                    const movedTile = hand.value.splice(draggedTileIndex.value, 1)[0];
+                    hand.value.splice(index, 0, movedTile);
+                    
+                    // 更新选中状态的索引以保持高亮
+                    if (selectedTileIndex.value === draggedTileIndex.value) {
+                        selectedTileIndex.value = index;
+                    } else if (selectedTileIndex.value !== null) {
+                        // 如果选中的牌不是拖拽的牌，且它的位置被影响了，需要调整
+                        if (draggedTileIndex.value < selectedTileIndex.value && index >= selectedTileIndex.value) {
+                            selectedTileIndex.value--;
+                        } else if (draggedTileIndex.value > selectedTileIndex.value && index <= selectedTileIndex.value) {
+                            selectedTileIndex.value++;
+                        }
+                    }
+
+                    draggedTileIndex.value = null;
+                    
+                    // 恢复透明度
+                    document.querySelectorAll('.mahjong-tile').forEach(el => {
+                        if (el.style.opacity === '0.5') el.style.opacity = '';
+                    });
+                };
+
                 return {
                     view, createPwd, joinPwd, joinRoomId, roomId, mySeat, roomInfo, gameState,
                     createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
                     hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
-                    drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
+                    onDragStart, onDragOver, onDrop,
+                    drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };
             }
         }).mount('#app');
