@@ -438,6 +438,9 @@
                          @dragover="onDragOver($event)"
                          @drop="onDrop($event, index)"
                          @dragenter.prevent
+                         @touchstart="onDragStart($event, index)"
+                         @touchmove="onTouchMove($event)"
+                         @touchend="onDrop($event, index)"
                          :class="['mahjong-tile', getTileClass(tile), 
                                   isTing && index !== hand.length - 1 ? 'opacity-50 grayscale' : '',
                                   pendingTing && !isWind(tile) ? 'opacity-30 cursor-not-allowed grayscale' : '',
@@ -659,10 +662,11 @@
 
                 const isWind = (tile) => winds.includes(tile);
                 
-                // 将文字牌映射为真实麻将图片（使用开源麻将素材库）
+                // 将文字牌映射为真实麻将图片（使用开源麻将素材库的 jsdelivr 加速节点，避免 githubusercontent 在国内被墙）
                 const getTileImage = (tile) => {
                     if (!tile) return '';
-                    const baseUrl = 'https://raw.githubusercontent.com/FluffyFishGames/mahjong-assets/master/styles/normal/tiles/';
+                    // 使用 jsdelivr CDN 代替直接访问 raw.githubusercontent.com
+                    const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyFishGames/mahjong-assets@master/styles/normal/tiles/';
                     const valueMap = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
                     
                     if (tile.includes('万')) return `${baseUrl}Man${valueMap[tile.charAt(0)]}.svg`;
@@ -833,37 +837,70 @@
                         return;
                     }
                     draggedTileIndex.value = index;
-                    // 设置拖拽时的透明度
-                    setTimeout(() => {
-                        if (e.target) e.target.style.opacity = '0.5';
-                    }, 0);
+                    // 为了移动端兼容，处理 touch 事件
+                    if (e.type === 'touchstart') {
+                        e.target.style.opacity = '0.5';
+                    } else {
+                        // 设置拖拽时的透明度
+                        setTimeout(() => {
+                            if (e.target) e.target.style.opacity = '0.5';
+                        }, 0);
+                    }
                 };
 
                 const onDragOver = (e) => {
                     e.preventDefault(); // 必须调用 preventDefault 才能触发 drop
                 };
+                
+                const onTouchMove = (e) => {
+                    if (draggedTileIndex.value === null) return;
+                    e.preventDefault(); // 防止屏幕滚动
+                };
 
                 const onDrop = (e, index) => {
                     e.preventDefault();
-                    if (draggedTileIndex.value === null || draggedTileIndex.value === index) {
+                    
+                    let targetIndex = index;
+                    
+                    // 如果是触摸事件，计算落点元素
+                    if (e.type === 'touchend' && e.changedTouches && e.changedTouches.length > 0) {
+                        const touch = e.changedTouches[0];
+                        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                        if (el) {
+                            // 向上查找 mahjong-tile 元素
+                            const tileEl = el.closest('.mahjong-tile');
+                            if (tileEl) {
+                                // 获取所有的手牌 DOM 元素
+                                const tiles = Array.from(tileEl.parentElement.children);
+                                const newIndex = tiles.indexOf(tileEl);
+                                if (newIndex !== -1) {
+                                    targetIndex = newIndex;
+                                }
+                            }
+                        }
+                    }
+
+                    if (draggedTileIndex.value === null || draggedTileIndex.value === targetIndex) {
                         // 恢复透明度
-                        const draggedEl = document.querySelector('.opacity-50');
-                        if (draggedEl) draggedEl.style.opacity = '1';
+                        document.querySelectorAll('.mahjong-tile').forEach(el => {
+                            if (el.style.opacity === '0.5') el.style.opacity = '';
+                        });
+                        draggedTileIndex.value = null;
                         return;
                     }
                     
                     // 将拖拽的牌从原位置移除并插入到新位置
                     const movedTile = hand.value.splice(draggedTileIndex.value, 1)[0];
-                    hand.value.splice(index, 0, movedTile);
+                    hand.value.splice(targetIndex, 0, movedTile);
                     
                     // 更新选中状态的索引以保持高亮
                     if (selectedTileIndex.value === draggedTileIndex.value) {
-                        selectedTileIndex.value = index;
+                        selectedTileIndex.value = targetIndex;
                     } else if (selectedTileIndex.value !== null) {
                         // 如果选中的牌不是拖拽的牌，且它的位置被影响了，需要调整
-                        if (draggedTileIndex.value < selectedTileIndex.value && index >= selectedTileIndex.value) {
+                        if (draggedTileIndex.value < selectedTileIndex.value && targetIndex >= selectedTileIndex.value) {
                             selectedTileIndex.value--;
-                        } else if (draggedTileIndex.value > selectedTileIndex.value && index <= selectedTileIndex.value) {
+                        } else if (draggedTileIndex.value > selectedTileIndex.value && targetIndex <= selectedTileIndex.value) {
                             selectedTileIndex.value++;
                         }
                     }
@@ -881,7 +918,7 @@
                     createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
                     hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
-                    onDragStart, onDragOver, onDrop,
+                    onDragStart, onDragOver, onTouchMove, onDrop,
                     drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };
             }
