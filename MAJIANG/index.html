@@ -247,8 +247,14 @@
                 <div class="flex space-x-4 justify-center">
                     <button @click="view = 'home'" class="px-8 py-3 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-bold transition">返回大厅</button>
                     <button v-if="mySeat && (!roomInfo.seats[mySeat] || !roomInfo.seats[mySeat].ready)" @click="ready" class="px-12 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-xl shadow-lg transition">准备</button>
-                    <button v-if="mySeat && roomInfo.seats[mySeat] && roomInfo.seats[mySeat].ready" class="px-12 py-3 bg-gray-400 text-white rounded-lg font-bold text-xl shadow-lg cursor-not-allowed">
+                    <button v-if="mySeat && roomInfo.seats[mySeat] && roomInfo.seats[mySeat].ready && mySeat !== '东'" class="px-12 py-3 bg-gray-400 text-white rounded-lg font-bold text-xl shadow-lg cursor-not-allowed">
                         等待其他人... 
+                    </button>
+                    <button v-if="mySeat === '东' && roomInfo.seats['东'] && roomInfo.seats['东'].ready && canStartGame" @click="requestStartGame" class="px-12 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-bold text-xl shadow-lg transition animate-pulse">
+                        开始游戏
+                    </button>
+                    <button v-if="mySeat === '东' && roomInfo.seats['东'] && roomInfo.seats['东'].ready && !canStartGame" class="px-12 py-3 bg-gray-400 text-white rounded-lg font-bold text-xl shadow-lg cursor-not-allowed">
+                        等待全员准备...
                     </button>
                 </div>
                 
@@ -373,13 +379,19 @@
                 </div>
             </div>
 
-            <!-- 中心轮次提示 (去除了统一的出牌区) -->
-            <div class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center">
-                <!-- 轮次发光字 -->
-                <div :class="['text-3xl font-black drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] mb-4 transition-all duration-300', 
-                              gameState.currentTurn === mySeat ? 'text-green-400 turn-indicator scale-110' : 'text-white/40']">
-                    {{ gameState.currentTurn }}风 {{ gameState.currentTurn === mySeat ? '出牌' : '' }}
-                </div>
+            <!-- 桌布中央的东南西北方位显示 -->
+            <div class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center justify-center w-[160px] h-[160px] rounded-full bg-black/40 border-4 border-green-800 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] pointer-events-none">
+                <!-- 自己的方位 (底) -->
+                <div :class="['absolute bottom-2 font-bold text-2xl transition-all', gameState.currentTurn === mySeat ? 'text-green-400 drop-shadow-[0_0_8px_#4ade80] scale-125' : 'text-white/60']">{{ mySeat }}</div>
+                <!-- 对家的方位 (顶) -->
+                <div :class="['absolute top-2 font-bold text-2xl transform rotate-180 transition-all', getRelativePlayer(2) && gameState.currentTurn === getRelativePlayer(2).seat ? 'text-green-400 drop-shadow-[0_0_8px_#4ade80] scale-125' : 'text-white/60']">{{ getRelativePlayer(2) ? getRelativePlayer(2).seat : '' }}</div>
+                <!-- 上家的方位 (左) -->
+                <div :class="['absolute left-2 font-bold text-2xl transform rotate-90 transition-all', getRelativePlayer(3) && gameState.currentTurn === getRelativePlayer(3).seat ? 'text-green-400 drop-shadow-[0_0_8px_#4ade80] scale-125' : 'text-white/60']">{{ getRelativePlayer(3) ? getRelativePlayer(3).seat : '' }}</div>
+                <!-- 下家的方位 (右) -->
+                <div :class="['absolute right-2 font-bold text-2xl transform -rotate-90 transition-all', getRelativePlayer(1) && gameState.currentTurn === getRelativePlayer(1).seat ? 'text-green-400 drop-shadow-[0_0_8px_#4ade80] scale-125' : 'text-white/60']">{{ getRelativePlayer(1) ? getRelativePlayer(1).seat : '' }}</div>
+                
+                <!-- 内部轮次提示词 -->
+                <div class="text-white/80 font-black text-sm mt-1 tracking-widest">{{ gameState.currentTurn === mySeat ? '请出牌' : '行牌中' }}</div>
             </div>
 
             <!-- 动作按钮区 (碰 杠 胡 等) -->
@@ -501,6 +513,23 @@
                 const godMode = ref(false);
 
                 const winds = ['东', '南', '西', '北', '红中', '发财', '白板'];
+
+                const canStartGame = Vue.computed(() => {
+                    if (!roomInfo.value || !roomInfo.value.seats) return false;
+                    let count = 0;
+                    let allReady = true;
+                    for (let s in roomInfo.value.seats) {
+                        if (roomInfo.value.seats[s]) {
+                            count++;
+                            if (!roomInfo.value.seats[s].ready) allReady = false;
+                        }
+                    }
+                    return count >= 2 && allReady;
+                });
+
+                const requestStartGame = () => {
+                    socket.emit('requestStartGame', { roomId: roomId.value });
+                };
 
                 // 监听密码输入触发彩蛋
                 Vue.watch([createPwd, joinPwd], ([newCreate, newJoin]) => {
@@ -666,7 +695,8 @@
                 const getTileImage = (tile) => {
                     if (!tile) return '';
                     // 使用 jsdelivr CDN 代替直接访问 raw.githubusercontent.com
-                    const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyFishGames/mahjong-assets@master/styles/normal/tiles/';
+                    // 修正仓库地址：使用真实存在的 FluffyStuff/riichi-mahjong-tiles 仓库
+                    const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/';
                     const valueMap = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
                     
                     if (tile.includes('万')) return `${baseUrl}Man${valueMap[tile.charAt(0)]}.svg`;
@@ -918,6 +948,7 @@
                     createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
                     hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
+                    canStartGame, requestStartGame,
                     onDragStart, onDragOver, onTouchMove, onDrop,
                     drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };

@@ -119,15 +119,39 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (playerCount >= 3 && allReady) {
-            startGame(room);
-        } else if (allReady && playerCount > 0) {
-            // Notify players that more people are needed
+        if (allReady && playerCount > 0 && playerCount < 2) {
             io.to(room.id).emit('waitingForPlayers', { 
                 current: playerCount, 
-                required: 3,
-                message: `当前房间只有 ${playerCount} 人准备，至少需要 3 人才能开始游戏。`
+                required: 2,
+                message: `当前房间只有 ${playerCount} 人，至少需要 2 人才能开始游戏。`
             });
+        }
+    });
+
+    socket.on('requestStartGame', (data) => {
+        const room = rooms[data.roomId];
+        if (!room || room.state === 'playing') return;
+        
+        const player = room.players[socket.id];
+        if (!player || player.seat !== '东') {
+            return socket.emit('errorMsg', '只有东风玩家可以开始游戏！');
+        }
+
+        let allReady = true;
+        let playerCount = 0;
+        for (let s in room.seats) {
+            if (room.seats[s]) {
+                playerCount++;
+                if (!room.players[room.seats[s]].ready) {
+                    allReady = false;
+                }
+            }
+        }
+
+        if (playerCount >= 2 && allReady) {
+            startGame(room);
+        } else {
+            socket.emit('errorMsg', '需要至少2人且所有人都准备好才能开始！');
         }
     });
 
@@ -510,7 +534,7 @@ function checkOtherPlayersActions(room, discardTile, discardSeat) {
         }
         // 简化胡牌检测，只要有听牌状态，就假设可以胡这张（真实麻将需要更复杂的算法，这里演示流程）
         if (player.isTing) {
-            // 如果房间人数不足 4 人，听牌后只能自摸，不能胡别人打出来的牌
+            // 根据规则：如果房间人数不足 4 人，听牌后只能自摸，不能胡别人打出来的牌 (点炮胡)
             const playerCount = Object.keys(room.players).length;
             if (playerCount === 4) {
                 actions.push({ seat: player.seat, type: 'hu', tile: discardTile });
