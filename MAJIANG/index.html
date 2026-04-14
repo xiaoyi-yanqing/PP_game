@@ -764,33 +764,34 @@
                     const emptyImg = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                     if (!tile || typeof tile !== 'string') return emptyImg;
                     
-                    // 使用更传统/中规中矩的维基百科开源麻将素材 (perthmahjongsoc/mahjong-tiles-svg)
-                    const baseUrl = 'https://cdn.jsdelivr.net/gh/perthmahjongsoc/mahjong-tiles-svg@master/';
+                    // 使用 WarL0ckNet 提供的更稳定、无 LFS 问题的基础麻将 SVG
+                    const baseUrl = 'https://cdn.jsdelivr.net/gh/WarL0ckNet/tile-art@master/simple_tiles/';
                     
-                    const wanMap = { '一': '🀇', '二': '🀈', '三': '🀉', '四': '🀊', '五': '🀋', '六': '🀌', '七': '🀍', '八': '🀎', '九': '🀏' };
-                    const pinMap = { '一': '🀙', '二': '🀚', '三': '🀛', '四': '🀜', '五': '🀝', '六': '🀞', '七': '🀟', '八': '🀠', '九': '🀡' };
-                    const souMap = { '一': '🀐', '二': '🀑', '三': '🀒', '四': '🀓', '五': '🀔', '六': '🀕', '七': '🀖', '八': '🀗', '九': '🀘' };
-                    const honorMap = { '东': '🀀', '南': '🀁', '西': '🀂', '北': '🀃', '红中': '🀄', '发财': '🀅', '白板': '🀆' };
+                    const honorMap = { 
+                        '东': 'tan', '南': 'nan', '西': 'xia', '北': 'pei', 
+                        '红中': 'chun', '发财': 'hatsu', '白板': 'haku' 
+                    };
 
-                    let folder = '';
                     let file = '';
 
                     if (tile.includes('万')) {
-                        folder = '萬';
-                        file = wanMap[tile.charAt(0)];
+                        file = `${tile.charAt(0)}man`;
                     } else if (tile.includes('筒')) {
-                        folder = '筒';
-                        file = pinMap[tile.charAt(0)];
+                        file = `${tile.charAt(0)}pin`;
                     } else if (tile.includes('索')) {
-                        folder = '索';
-                        file = souMap[tile.charAt(0)];
+                        file = `${tile.charAt(0)}sou`;
                     } else if (honorMap[tile]) {
-                        folder = '番';
                         file = honorMap[tile];
                     }
+                    
+                    // 转换中文数字为阿拉伯数字
+                    const numMap = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+                    if (file && numMap[file.charAt(0)]) {
+                        file = numMap[file.charAt(0)] + file.substring(1);
+                    }
 
-                    if (folder && file) {
-                        return `${baseUrl}${encodeURIComponent(folder)}/${encodeURIComponent(file)}.svg`;
+                    if (file) {
+                        return `${baseUrl}${file}.svg`;
                     }
                     
                     return emptyImg;
