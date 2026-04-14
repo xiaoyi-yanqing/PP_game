@@ -771,6 +771,11 @@
                             return valA - valB;
                         }
                     });
+                    
+                    // 理牌后向服务端同步新顺序，避免下次摸牌时服务端发回旧顺序导致界面乱跳
+                    if (roomId.value && hand.value.length > 0) {
+                        socket.emit('syncHand', { roomId: roomId.value, hand: hand.value });
+                    }
                 };
 
                 const isWind = (tile) => winds.includes(tile);
@@ -1128,6 +1133,11 @@
                         } else if (draggedTileIndex.value > selectedTileIndex.value && targetIndex <= selectedTileIndex.value) {
                             selectedTileIndex.value++;
                         }
+                    }
+
+                    // 拖拽改变顺序后向服务端同步新顺序，避免下次摸牌时顺序被重置
+                    if (roomId.value) {
+                        socket.emit('syncHand', { roomId: roomId.value, hand: hand.value });
                     }
 
                     draggedTileIndex.value = null;

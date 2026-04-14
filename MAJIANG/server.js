@@ -466,6 +466,21 @@ io.on('connection', (socket) => {
         }, 1000);
     });
 
+    // 玩家理牌或拖拽后，同步手牌顺序
+    socket.on('syncHand', (data) => {
+        const room = rooms[data.roomId];
+        if (!room || room.state !== 'playing') return;
+        const player = room.players[socket.id];
+        if (player && data.hand && Array.isArray(data.hand)) {
+            // 安全校验：确保提交的牌与服务端的牌完全一致（防止外挂凭空变牌）
+            let original = [...player.hand].sort().join(',');
+            let incoming = [...data.hand].sort().join(',');
+            if (original === incoming) {
+                player.hand = data.hand;
+            }
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
         // Handle player disconnection (cleanup rooms)
