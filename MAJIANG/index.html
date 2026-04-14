@@ -28,32 +28,33 @@
         }
         /* 拟真麻将牌样式 */
         .mahjong-tile {
-            width: 54px; 
-            height: 76px;
+            width: 46px; 
+            height: 64px;
             background: linear-gradient(to bottom, #ffffff 75%, #e0e0e0 100%);
-            border-radius: 8px;
-            border-bottom: 8px solid #4ade80; /* 绿色牌背 */
-            border-right: 2px solid #ccc;
+            border-radius: 6px;
+            border-bottom: 6px solid #4ade80; /* 绿色牌背 */
+            border-right: 1px solid #ccc;
             border-left: 1px solid #fff;
-            box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
+            box-shadow: 2px 4px 6px rgba(0,0,0,0.3);
             display: flex; 
             align-items: center; 
             justify-content: center;
             font-weight: bold; 
-            font-size: 1.6rem; 
+            font-size: 1.4rem; 
             cursor: pointer;
             user-select: none;
             transition: transform 0.1s;
+            overflow: hidden; /* 确保放大的图标不会溢出牌面 */
         }
         .mahjong-tile:hover {
-            transform: translateY(-12px);
+            transform: translateY(-10px);
         }
         .mahjong-tile.wind { color: #2563eb; } /* 风牌蓝色 */
         .mahjong-tile.wan { color: #dc2626; } /* 万字红色 */
         .mahjong-tile.tong { color: #059669; } /* 筒子绿色 */
         
         .discard-tile {
-            width: 42px; height: 60px; font-size: 1.2rem; border-bottom: 5px solid #4ade80;
+            width: 34px; height: 48px; font-size: 1rem; border-bottom: 4px solid #4ade80;
         }
         .action-btn {
             background: linear-gradient(to bottom, #fde047, #f59e0b);
@@ -464,7 +465,7 @@
                         <div class="flex">
                             <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
                                  :class="['mahjong-tile out-tile', getTileClass(group.tile)]">
-                                <img :src="getTileImage(group.tile)" class="w-full h-full object-contain pointer-events-none p-0" />
+                                <img :src="getTileImage(group.tile)" class="w-full h-full object-cover pointer-events-none" style="transform: scale(1.35);" />
                             </div>
                         </div>
                         <div class="text-xs text-white/50 self-end ml-1">{{ formatActionName(group.type) }}</div>
@@ -492,7 +493,7 @@
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
                                   selectedTileIndex === index ? 'selected-tile' : '',
                                   draggedTileIndex !== null && dragOverIndex === index ? (index > draggedTileIndex ? 'ml-10' : 'mr-10') : '']">
-                        <img :src="getTileImage(tile)" class="w-full h-full object-contain pointer-events-none p-0" />
+                        <img :src="getTileImage(tile)" class="w-full h-full object-cover pointer-events-none" style="transform: scale(1.35);" />
                     </div>
                 </div>
             </div>
