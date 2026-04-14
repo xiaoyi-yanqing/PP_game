@@ -447,18 +447,21 @@
                          @click="selectTile(index)"
                          draggable="true"
                          @dragstart="onDragStart($event, index)"
-                         @dragover="onDragOver($event)"
+                         @dragover="onDragOver($event, index)"
+                         @dragleave="onDragLeave"
                          @drop="onDrop($event, index)"
                          @dragenter.prevent
                          @touchstart="onDragStart($event, index)"
                          @touchmove="onTouchMove($event)"
-                         @touchend="onDrop($event, index)"
-                         :class="['mahjong-tile', getTileClass(tile), 
+                         @touchend.prevent="onTouchCancelOrEnd($event, index)"
+                         @touchcancel="onTouchCancelOrEnd($event, index)"
+                         :class="['mahjong-tile transition-all duration-200', getTileClass(tile), 
                                   isTing && index !== hand.length - 1 ? 'opacity-50 grayscale' : '',
                                   pendingTing && !isWind(tile) ? 'opacity-30 cursor-not-allowed grayscale' : '',
                                   gameState.currentTurn === mySeat && index === hand.length - 1 && hand.length % 3 === 2 ? 'ml-4' : '',
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
-                                  selectedTileIndex === index ? 'selected-tile' : '']">
+                                  selectedTileIndex === index ? 'selected-tile' : '',
+                                  dragOverIndex === index ? (index > draggedTileIndex ? 'ml-8' : 'mr-8') : '']">
                         <img :src="getTileImage(tile)" class="w-[85%] h-[85%] object-contain pointer-events-none" />
                     </div>
                 </div>
@@ -793,6 +796,9 @@
                 };
 
                 const selectTile = (index) => {
+                    // 如果正在拖拽，不允许选中，避免冲突
+                    if (draggedTileIndex.value !== null) return;
+                    
                     if (gameState.value.currentTurn !== mySeat.value) return;
                     if (hand.value.length % 3 !== 2) return;
                     
@@ -859,6 +865,9 @@
 
                 // 拖拽相关状态
                 const draggedTileIndex = ref(null);
+                const dragOverIndex = ref(null); // 预览即将插入的位置
+                let longPressTimer = null; // 用于判断长按
+                let isLongPressing = false;
                 
                 const onDragStart = (e, index) => {
                     // 听牌状态下不允许拖拽改变牌序
@@ -866,25 +875,77 @@
                         e.preventDefault();
                         return;
                     }
-                    draggedTileIndex.value = index;
-                    // 为了移动端兼容，处理 touch 事件
+                    
                     if (e.type === 'touchstart') {
-                        e.target.style.opacity = '0.5';
+                        // 移动端：设置长按定时器（200ms 后才算触发拖拽）
+                        isLongPressing = false;
+                        longPressTimer = setTimeout(() => {
+                            isLongPressing = true;
+                            draggedTileIndex.value = index;
+                            e.target.style.opacity = '0.5';
+                        }, 200);
                     } else {
-                        // 设置拖拽时的透明度
+                        // PC端：原生 dragstart
+                        draggedTileIndex.value = index;
                         setTimeout(() => {
                             if (e.target) e.target.style.opacity = '0.5';
                         }, 0);
                     }
                 };
 
-                const onDragOver = (e) => {
+                const onTouchCancelOrEnd = (e, index) => {
+                    // 如果定时器还没触发（说明按下的时间短），就取消拖拽判定，当作普通点击处理
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                    
+                    // 如果只是轻触（没有触发长按拖拽），就手动触发选牌逻辑
+                    if (!isLongPressing && e.type === 'touchend') {
+                        selectTile(index);
+                    } else if (isLongPressing && e.type === 'touchend') {
+                        // 如果是长按结束，走拖拽放置逻辑
+                        onDrop(e, index);
+                    }
+                    isLongPressing = false;
+                };
+
+                const onDragOver = (e, index) => {
                     e.preventDefault(); // 必须调用 preventDefault 才能触发 drop
+                    if (draggedTileIndex.value !== null && draggedTileIndex.value !== index) {
+                        dragOverIndex.value = index;
+                    }
+                };
+                
+                const onDragLeave = () => {
+                    dragOverIndex.value = null;
                 };
                 
                 const onTouchMove = (e) => {
-                    if (draggedTileIndex.value === null) return;
+                    if (longPressTimer) {
+                        // 如果在200ms内手指移动了，取消长按判定
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                    if (!isLongPressing || draggedTileIndex.value === null) return;
                     e.preventDefault(); // 防止屏幕滚动
+                    
+                    if (e.changedTouches && e.changedTouches.length > 0) {
+                        const touch = e.changedTouches[0];
+                        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                        if (el) {
+                            const tileEl = el.closest('.mahjong-tile');
+                            if (tileEl) {
+                                const tiles = Array.from(tileEl.parentElement.children);
+                                const newIndex = tiles.indexOf(tileEl);
+                                if (newIndex !== -1 && newIndex !== draggedTileIndex.value) {
+                                    dragOverIndex.value = newIndex;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    dragOverIndex.value = null;
                 };
 
                 const onDrop = (e, index) => {
@@ -911,11 +972,12 @@
                     }
 
                     if (draggedTileIndex.value === null || draggedTileIndex.value === targetIndex) {
-                        // 恢复透明度
+                        // 恢复透明度和预览
                         document.querySelectorAll('.mahjong-tile').forEach(el => {
                             if (el.style.opacity === '0.5') el.style.opacity = '';
                         });
                         draggedTileIndex.value = null;
+                        dragOverIndex.value = null;
                         return;
                     }
                     
@@ -936,6 +998,7 @@
                     }
 
                     draggedTileIndex.value = null;
+                    dragOverIndex.value = null;
                     
                     // 恢复透明度
                     document.querySelectorAll('.mahjong-tile').forEach(el => {
@@ -949,7 +1012,7 @@
                     hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
                     canStartGame, requestStartGame,
-                    onDragStart, onDragOver, onTouchMove, onDrop,
+                    onDragStart, onDragOver, onDragLeave, onTouchMove, onTouchCancelOrEnd, onDrop,
                     drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };
             }
