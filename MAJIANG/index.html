@@ -589,6 +589,8 @@
                     setTimeout(() => msg.value = '', 2500);
                 };
 
+                let diceInterval = null;
+
                 onMounted(() => {
                     socket.on('roomUpdated', (info) => {
                         roomInfo.value = info;
@@ -613,12 +615,14 @@
                         };
                         
                         let rolls = 0;
-                        const interval = setInterval(() => {
+                        if (diceInterval) clearInterval(diceInterval);
+                        diceInterval = setInterval(() => {
                             diceState.value.dice1 = Math.floor(Math.random() * 6) + 1;
                             diceState.value.dice2 = Math.floor(Math.random() * 6) + 1;
                             rolls++;
                             if (rolls > 15) { // 滚动动画持续 1.5 秒
-                                clearInterval(interval);
+                                clearInterval(diceInterval);
+                                diceInterval = null;
                                 diceState.value.rolling = false;
                                 diceState.value.dice1 = data.dice1;
                                 diceState.value.dice2 = data.dice2;
@@ -686,6 +690,17 @@
                             view.value = 'room';
                             mySeat.value = null;
                         }, 3000);
+                    });
+
+                    socket.on('disconnect', () => {
+                        showMsg("已断开与服务器的连接");
+                        view.value = 'home';
+                        mySeat.value = null;
+                        roomId.value = '';
+                    });
+
+                    socket.on('connect_error', () => {
+                        showMsg("连接服务器失败，请检查网络或稍后重试");
                     });
                 });
 

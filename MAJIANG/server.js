@@ -56,8 +56,7 @@ io.on('connection', (socket) => {
             currentTurn: null, // seat name
             lastWinner: null, // 上局赢家
             lastDiscard: null, // { tile: '东', seat: '南' }
-            pendingActions: [], // 存储其他玩家可执行的操作 [{seat, type: 'peng'|'gang'|'hu', tile}]
-            actionTimeout: null // 定时器
+            pendingActions: [] // 存储其他玩家可执行的操作 [{seat, type: 'peng'|'gang'|'hu', tile}]
         };
         socket.join(roomId);
         callback({ success: true, roomId });
@@ -482,6 +481,12 @@ io.on('connection', (socket) => {
                 if (room.state === 'playing') {
                      io.to(roomId).emit('gameOver', { message: `玩家 ${seat}风 掉线，游戏结束。` });
                      room.state = 'waiting';
+                }
+                
+                // 检查房间是否已经空了，如果是，则销毁房间以防内存泄漏
+                if (Object.keys(room.players).length === 0) {
+                    delete rooms[roomId];
+                    console.log(`Room ${roomId} is empty and has been destroyed.`);
                 }
             }
         }
