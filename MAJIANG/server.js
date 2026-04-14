@@ -43,7 +43,8 @@ io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
     socket.on('createRoom', (data, callback) => {
-        const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+        // 生成3位随机数字的房间号 (100-999)
+        const roomId = Math.floor(100 + Math.random() * 900).toString();
         rooms[roomId] = {
             id: roomId,
             password: data.password,

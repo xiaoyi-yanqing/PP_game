@@ -461,7 +461,7 @@
                                   gameState.currentTurn === mySeat && index === hand.length - 1 && hand.length % 3 === 2 ? 'ml-4' : '',
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
                                   selectedTileIndex === index ? 'selected-tile' : '',
-                                  dragOverIndex === index ? (index > draggedTileIndex ? 'ml-8' : 'mr-8') : '']">
+                                  draggedTileIndex !== null && dragOverIndex === index ? (index > draggedTileIndex ? 'ml-10' : 'mr-10') : '']">
                         <img :src="getTileImage(tile)" class="w-[85%] h-[85%] object-contain pointer-events-none" />
                     </div>
                 </div>
@@ -696,7 +696,7 @@
                 
                 // 将文字牌映射为真实麻将图片（使用开源麻将素材库的 jsdelivr 加速节点，避免 githubusercontent 在国内被墙）
                 const getTileImage = (tile) => {
-                    if (!tile) return '';
+                    if (!tile || typeof tile !== 'string') return '';
                     // 使用 jsdelivr CDN 代替直接访问 raw.githubusercontent.com
                     // 修正仓库地址：使用真实存在的 FluffyStuff/riichi-mahjong-tiles 仓库
                     const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/';
