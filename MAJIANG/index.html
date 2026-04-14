@@ -572,6 +572,10 @@
                     }
                 });
 
+                const confirmDeal = () => {
+                    socket.emit('confirmDeal', { roomId: roomId.value });
+                };
+
                 const showMsg = (text) => {
                     msg.value = text;
                     setTimeout(() => msg.value = '', 2500);
@@ -614,10 +618,6 @@
                         }, 100);
                         // 不再自动消失，等待手动点击发牌
                     });
-
-                    const confirmDeal = () => {
-                        socket.emit('confirmDeal', { roomId: roomId.value });
-                    };
 
                     socket.on('gameStarted', (data) => {
                         diceState.value.show = false; // 正式发牌时隐藏骰子面板
