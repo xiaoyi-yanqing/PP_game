@@ -380,7 +380,7 @@
             </div>
 
             <!-- 桌布中央的东南西北方位显示 -->
-            <div class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center justify-center w-[160px] h-[160px] rounded-full bg-black/40 border-4 border-green-800 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] pointer-events-none">
+            <div v-if="!diceState.show" class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0 flex flex-col items-center justify-center w-[160px] h-[160px] rounded-full bg-black/40 border-4 border-green-800 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] pointer-events-none">
                 <!-- 自己的方位 (底) -->
                 <div :class="['absolute bottom-2 font-bold text-2xl transition-all', gameState.currentTurn === mySeat ? 'text-green-400 drop-shadow-[0_0_8px_#4ade80] scale-125' : 'text-white/60']">{{ mySeat }}</div>
                 <!-- 对家的方位 (顶) -->
@@ -392,6 +392,29 @@
                 
                 <!-- 内部轮次提示词 -->
                 <div class="text-white/80 font-black text-sm mt-1 tracking-widest">{{ gameState.currentTurn === mySeat ? '请出牌' : '行牌中' }}</div>
+            </div>
+
+            <!-- 骰子动画区 -->
+            <div v-if="diceState.show" class="absolute top-[40%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center bg-black/60 px-10 py-8 rounded-2xl backdrop-blur-sm border border-white/20">
+                <div class="text-white text-2xl font-bold mb-6 tracking-widest">{{ diceState.roller }}风 掷骰子...</div>
+                <div class="flex gap-6 mb-6">
+                    <div class="w-20 h-20 bg-white rounded-xl flex items-center justify-center shadow-lg border-b-4 border-gray-300">
+                        <span :class="['text-5xl font-black', diceState.dice1 === 1 || diceState.dice1 === 4 ? 'text-red-600' : 'text-black']">{{ diceState.dice1 }}</span>
+                    </div>
+                    <div class="w-20 h-20 bg-white rounded-xl flex items-center justify-center shadow-lg border-b-4 border-gray-300">
+                        <span :class="['text-5xl font-black', diceState.dice2 === 1 || diceState.dice2 === 4 ? 'text-red-600' : 'text-black']">{{ diceState.dice2 }}</span>
+                    </div>
+                </div>
+                <div v-if="!diceState.rolling" class="text-yellow-400 text-2xl font-bold animate-bounce whitespace-nowrap">
+                    {{ diceState.dice1 + diceState.dice2 }}点，由 {{ diceState.starter }}风 先手！
+                </div>
+                
+                <button v-if="!diceState.rolling && mySeat === diceState.starter" @click="confirmDeal" class="mt-8 px-10 py-3 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold text-xl shadow-lg border-2 border-green-400 transition transform hover:scale-105 tracking-widest animate-pulse">
+                    发牌开始
+                </button>
+                <div v-else-if="!diceState.rolling && mySeat !== diceState.starter" class="mt-8 text-white/60 text-sm tracking-widest">
+                    等待 {{ diceState.starter }}风 发牌...
+                </div>
             </div>
 
             <!-- 动作按钮区 (碰 杠 胡 等) -->
@@ -510,6 +533,9 @@
                 const isDrawing = ref(false); // 是否正在播放摸牌动画
                 const selectedTileIndex = ref(null); // 当前选中的牌索引
 
+                // 骰子状态
+                const diceState = ref({ show: false, rolling: false, dice1: 1, dice2: 1, roller: '', starter: '' });
+
                 // 彩蛋状态
                 const showCoins = ref(false);
                 const coins = ref([]);
@@ -563,7 +589,38 @@
                         waitingMsg.value = data.message;
                     });
 
+                    socket.on('diceRolled', (data) => {
+                        view.value = 'game'; // 切换到游戏界面以显示骰子动画
+                        diceState.value = {
+                            show: true,
+                            rolling: true,
+                            dice1: 1,
+                            dice2: 1,
+                            roller: data.rollerSeat,
+                            starter: data.starterSeat
+                        };
+                        
+                        let rolls = 0;
+                        const interval = setInterval(() => {
+                            diceState.value.dice1 = Math.floor(Math.random() * 6) + 1;
+                            diceState.value.dice2 = Math.floor(Math.random() * 6) + 1;
+                            rolls++;
+                            if (rolls > 15) { // 滚动动画持续 1.5 秒
+                                clearInterval(interval);
+                                diceState.value.rolling = false;
+                                diceState.value.dice1 = data.dice1;
+                                diceState.value.dice2 = data.dice2;
+                            }
+                        }, 100);
+                        // 不再自动消失，等待手动点击发牌
+                    });
+
+                    const confirmDeal = () => {
+                        socket.emit('confirmDeal', { roomId: roomId.value });
+                    };
+
                     socket.on('gameStarted', (data) => {
+                        diceState.value.show = false; // 正式发牌时隐藏骰子面板
                         hand.value = data.hand;
                         outTiles.value = data.outTiles || [];
                         isTing.value = data.isTing;
@@ -1011,7 +1068,7 @@
                     createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
                     hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
-                    canStartGame, requestStartGame,
+                    canStartGame, requestStartGame, confirmDeal,
                     onDragStart, onDragOver, onDragLeave, onTouchMove, onTouchCancelOrEnd, onDrop,
                     drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile
                 };

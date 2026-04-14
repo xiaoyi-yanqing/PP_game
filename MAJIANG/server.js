@@ -50,10 +50,11 @@ io.on('connection', (socket) => {
             password: data.password,
             players: {}, // socketId -> { seat, ready, hand, isTing, outTiles: [], discards: [] } // outTiles 记录碰杠的牌, discards 记录该玩家打出的牌
             seats: { '东': null, '南': null, '西': null, '北': null },
-            state: 'waiting', // waiting, playing
+            state: 'waiting', // waiting, rolling, playing
             deck: [],
             discardPile: [], // 全局记录用于回退(如果碰/杠的话)
             currentTurn: null, // seat name
+            lastWinner: null, // 上局赢家
             lastDiscard: null, // { tile: '东', seat: '南' }
             pendingActions: [], // 存储其他玩家可执行的操作 [{seat, type: 'peng'|'gang'|'hu', tile}]
             actionTimeout: null // 定时器
@@ -131,7 +132,7 @@ io.on('connection', (socket) => {
 
     socket.on('requestStartGame', (data) => {
         const room = rooms[data.roomId];
-        if (!room || room.state === 'playing') return;
+        if (!room || room.state === 'playing' || room.state === 'rolling') return;
         
         const player = room.players[socket.id];
         if (!player || player.seat !== '东') {
@@ -140,9 +141,13 @@ io.on('connection', (socket) => {
 
         let allReady = true;
         let playerCount = 0;
-        for (let s in room.seats) {
+        const seatOrder = ['东', '南', '西', '北'];
+        const activeSeats = [];
+        
+        for (let s of seatOrder) {
             if (room.seats[s]) {
                 playerCount++;
+                activeSeats.push(s);
                 if (!room.players[room.seats[s]].ready) {
                     allReady = false;
                 }
@@ -150,10 +155,53 @@ io.on('connection', (socket) => {
         }
 
         if (playerCount >= 2 && allReady) {
-            startGame(room);
+            room.state = 'rolling'; // 防止重复点击
+            
+            // 决定谁来掷骰子：如果有上局赢家且仍在房间内，则赢家掷骰子，否则东风掷骰子
+            let rollerSeat = '东';
+            if (room.lastWinner && activeSeats.includes(room.lastWinner)) {
+                rollerSeat = room.lastWinner;
+            }
+            
+            // 掷两枚骰子
+            const dice1 = Math.floor(Math.random() * 6) + 1;
+            const dice2 = Math.floor(Math.random() * 6) + 1;
+            const diceSum = dice1 + dice2;
+            
+            // 计算先手位置：从掷骰子的人开始，逆时针数（在数组中是向右移动）
+            const rollerIdx = activeSeats.indexOf(rollerSeat);
+            const starterIdx = (rollerIdx + diceSum - 1) % activeSeats.length;
+            const starterSeat = activeSeats[starterIdx];
+
+            // 广播掷骰子事件，让客户端展示动画
+            io.to(room.id).emit('diceRolled', { 
+                dice1, 
+                dice2, 
+                diceSum, 
+                rollerSeat, 
+                starterSeat 
+            });
+
+            // 将发牌权交给 starterSeat
+            room.currentStarter = starterSeat;
+
         } else {
             socket.emit('errorMsg', '需要至少2人且所有人都准备好才能开始！');
         }
+    });
+
+    // 先手玩家确认发牌
+    socket.on('confirmDeal', (data) => {
+        const room = rooms[data.roomId];
+        if (!room || room.state !== 'rolling') return;
+        
+        const player = room.players[socket.id];
+        if (!player || player.seat !== room.currentStarter) {
+            return socket.emit('errorMsg', '还没轮到您发牌！');
+        }
+
+        // 正式发牌开始
+        startGame(room, room.currentStarter);
     });
 
     socket.on('drawTile', (data) => {
@@ -269,7 +317,13 @@ io.on('connection', (socket) => {
 
         // 处理胡牌 (最高优先级，简化为只要点胡就算赢)
         if (actionType === 'hu') {
-            io.to(room.id).emit('gameOver', { message: `玩家 ${player.seat}风 胡牌啦！胡的是【${tile}】` });
+            room.lastWinner = player.seat; // 记录上局赢家
+            io.to(room.id).emit('gameOver', {
+                winner: player.seat,
+                winnerName: player.seat,
+                reason: '胡牌',
+                tile: tile
+            });
             room.state = 'waiting';
             return;
         }
@@ -417,11 +471,11 @@ io.on('connection', (socket) => {
     });
 });
 
-function startGame(room) {
+function startGame(room, starterSeat = '东') {
     room.state = 'playing';
     room.deck = shuffleDeck();
     room.discardPile = [];
-    room.currentTurn = '东'; // East always starts (simplified)
+    room.currentTurn = starterSeat; // 由骰子算出的先手玩家开始
     room.pendingActions = [];
 
     // Deal tiles
@@ -505,7 +559,7 @@ function drawTileForPlayer(room, socketId) {
 
     // 检查自摸胡牌
     if (player.isTing && checkHu(player.hand)) {
-        myActions.push({ seat: player.seat, type: 'hu', tile: tile });
+        myActions.push({ seat: player.seat, type: 'hu', tile: tile }); // 记录胡牌动作
     }
 
     io.to(socketId).emit('handUpdated', { hand: player.hand, outTiles: player.outTiles, drawAnimation: true });
