@@ -410,8 +410,8 @@
                     {{ diceState.dice1 + diceState.dice2 }}点，由 {{ diceState.starter }}风 先手！
                 </div>
                 
-                <button v-if="!diceState.rolling && mySeat === diceState.starter" @click="confirmDeal" class="mt-8 px-10 py-3 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold text-xl shadow-lg border-2 border-green-400 transition transform hover:scale-105 tracking-widest animate-pulse">
-                    发牌开始
+                <button v-if="!diceState.rolling && mySeat === diceState.starter" @click="confirmDeal" class="mt-8 px-10 py-3 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold text-xl shadow-lg border-2 border-green-400 transition transform hover:scale-105 tracking-widest animate-pulse pointer-events-auto relative z-[60]">
+                    开始发牌
                 </button>
                 <div v-else-if="!diceState.rolling && mySeat !== diceState.starter" class="mt-8 text-white/60 text-sm tracking-widest">
                     等待 {{ diceState.starter }}风 发牌...

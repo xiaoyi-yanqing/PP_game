@@ -132,7 +132,9 @@ io.on('connection', (socket) => {
 
     socket.on('requestStartGame', (data) => {
         const room = rooms[data.roomId];
-        if (!room || room.state === 'playing' || room.state === 'rolling') return;
+        if (!room) return socket.emit('errorMsg', '房间不存在');
+        if (room.state === 'playing') return socket.emit('errorMsg', '游戏已经在进行中');
+        if (room.state === 'rolling') return socket.emit('errorMsg', '正在等待先手玩家确认发牌');
         
         const player = room.players[socket.id];
         if (!player || player.seat !== '东') {
@@ -200,9 +202,11 @@ io.on('connection', (socket) => {
     // 先手玩家确认发牌
     socket.on('confirmDeal', (data) => {
         const room = rooms[data.roomId];
-        if (!room || room.state !== 'rolling') return;
+        if (!room) return socket.emit('errorMsg', '房间不存在');
+        if (room.state !== 'rolling') return socket.emit('errorMsg', '当前状态无法发牌');
         
         const player = room.players[socket.id];
+        // 只有抛骰子选出的 starter 才有权限发牌
         if (!player || player.seat !== room.currentStarter) {
             return socket.emit('errorMsg', '还没轮到您发牌！');
         }
