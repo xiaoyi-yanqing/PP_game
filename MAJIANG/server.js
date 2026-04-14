@@ -311,6 +311,12 @@ io.on('connection', (socket) => {
         const { actionType, tile } = data; // 'peng', 'gang', 'hu', 'pass', 'angang', 'jiagang'
 
         if (actionType === 'pass') {
+            // 如果是当前回合的玩家（例如摸牌后放弃了暗杠/加杠/自摸胡），点“过”只需清空提示，不应流转回合
+            if (room.currentTurn === player.seat) {
+                socket.emit('availableActions', []);
+                return;
+            }
+
             // 过滤掉当前玩家的等待动作
             room.pendingActions = room.pendingActions.filter(a => a.seat !== player.seat);
             socket.emit('availableActions', []);
@@ -442,7 +448,7 @@ io.on('connection', (socket) => {
 
     socket.on('restartGame', (data) => {
         const room = rooms[data.roomId];
-        if (!room || room.state !== 'playing') return;
+        if (!room || (room.state !== 'playing' && room.state !== 'waiting')) return;
         
         const player = room.players[socket.id];
         if (!player || player.seat !== '东') {
@@ -551,19 +557,7 @@ function drawTileForPlayer(room, socketId) {
     let myActions = [];
     const tileCounts = getTileCounts(player.hand);
     
-    // 检查暗杠
-    for (let t in tileCounts) {
-        if (tileCounts[t] === 4) {
-            myActions.push({ seat: player.seat, type: 'angang', tile: t });
-        }
-    }
-    // 检查加杠 (手牌里有1张，且outTiles里有对应的peng)
-    player.outTiles.forEach(out => {
-        if (out.type === 'peng' && player.hand.includes(out.tile)) {
-            myActions.push({ seat: player.seat, type: 'jiagang', tile: out.tile });
-        }
-    });
-
+    // (前端已改为通过 computed 实时计算暗杠和加杠，这里服务端仅需检查自摸胡)
     // 检查自摸胡牌
     if (player.isTing && checkHu(player.hand)) {
         myActions.push({ seat: player.seat, type: 'hu', tile: tile }); // 记录胡牌动作

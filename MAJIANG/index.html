@@ -418,13 +418,20 @@
             </div>
 
             <!-- 动作按钮区 (碰 杠 胡 等) -->
-            <div v-if="availableActions.length > 0" class="absolute bottom-[160px] left-1/2 transform -translate-x-1/2 flex space-x-6 z-50 bg-black/60 px-8 py-4 rounded-full backdrop-blur-sm">
-                <button v-for="(action, i) in availableActions" :key="i"
+            <div v-if="availableActions.length > 0 || selfActions.length > 0" class="absolute bottom-[160px] left-1/2 transform -translate-x-1/2 flex space-x-6 z-50 bg-black/60 px-8 py-4 rounded-full backdrop-blur-sm">
+                <!-- 服务端推送的动作 (碰、明杠、胡) -->
+                <button v-for="(action, i) in availableActions" :key="'avail-'+i"
                         @click="doAction(action)"
                         class="action-btn">
-                    {{ formatActionName(action.type) }}
+                    {{ formatActionName(action.type) }} {{ action.tile || '' }}
                 </button>
-                <button @click="doAction({type: 'pass'})" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-full border-2 border-gray-400">过</button>
+                <!-- 客户端计算的常驻动作 (暗杠、加杠) -->
+                <button v-for="(action, i) in selfActions" :key="'self-'+i"
+                        @click="doAction(action)"
+                        class="action-btn animate-pulse border-purple-400 bg-purple-600 hover:bg-purple-500">
+                    {{ formatActionName(action.type) }} {{ action.tile || '' }}
+                </button>
+                <button v-if="availableActions.length > 0" @click="doAction({type: 'pass'})" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-full border-2 border-gray-400">过</button>
             </div>
 
             <!-- 操作按钮区 -->
@@ -836,6 +843,33 @@
                     return gameState.value.players[mySeat.value];
                 });
 
+                const selfActions = Vue.computed(() => {
+                    if (gameState.value.currentTurn !== mySeat.value) return [];
+                    if (hand.value.length % 3 !== 2) return []; // 必须是出牌前阶段
+                    
+                    const actions = [];
+                    const counts = {};
+                    hand.value.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+                    
+                    // 暗杠
+                    for (const t in counts) {
+                        if (counts[t] === 4) {
+                            actions.push({ type: 'angang', tile: t });
+                        }
+                    }
+                    
+                    // 加杠
+                    if (myPlayerInfo.value && myPlayerInfo.value.outTiles) {
+                        myPlayerInfo.value.outTiles.forEach(out => {
+                            if (out.type === 'peng' && counts[out.tile] > 0) {
+                                actions.push({ type: 'jiagang', tile: out.tile });
+                            }
+                        });
+                    }
+                    
+                    return actions;
+                });
+
                 const drawTile = () => {
                     socket.emit('drawTile', { roomId: roomId.value });
                 };
@@ -1086,7 +1120,7 @@
                 return {
                     view, createPwd, joinPwd, joinRoomId, roomId, mySeat, roomInfo, gameState,
                     createRoom, joinRoom, selectSeat, ready, exitGame, restartGame,
-                    hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, isDrawing, selectedTileIndex, myPlayerInfo,
+                    hand, outTiles, isTing, pendingTing, msg, waitingMsg, availableActions, selfActions, isDrawing, selectedTileIndex, myPlayerInfo,
                     showCoins, coins, godMode,
                     canStartGame, requestStartGame, confirmDeal, diceState, draggedTileIndex, dragOverIndex,
                     onDragStart, onDragOver, onDragLeave, onTouchMove, onTouchCancelOrEnd, onDrop,
