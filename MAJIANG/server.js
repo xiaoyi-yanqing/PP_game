@@ -604,10 +604,14 @@ function checkOtherPlayersActions(room, discardTile, discardSeat) {
         let count = 0;
         player.hand.forEach(t => { if (t === discardTile) count++; });
 
-        // 可以碰
-        if (count >= 2) {
-            actions.push({ seat: player.seat, type: 'peng', tile: discardTile });
+        // 玩家如果已经听牌，则不能再碰牌，只能杠或胡
+        if (!player.isTing) {
+            // 可以碰
+            if (count >= 2) {
+                actions.push({ seat: player.seat, type: 'peng', tile: discardTile });
+            }
         }
+        
         // 可以明杠
         if (count === 3) {
             actions.push({ seat: player.seat, type: 'gang', tile: discardTile });

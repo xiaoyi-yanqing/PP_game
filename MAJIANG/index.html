@@ -436,11 +436,13 @@
             </div>
 
             <!-- 操作按钮区 -->
-            <div class="absolute bottom-[120px] left-0 w-full flex justify-center space-x-6 z-50">
+            <div class="absolute bottom-[230px] left-0 w-full flex justify-center space-x-6 z-40 pointer-events-none">
                 <div v-if="gameState.currentTurn !== mySeat" class="text-white/60 text-lg font-bold flex items-center tracking-wider bg-black/40 px-6 py-2 rounded-full">
                     ... 等待其他玩家操作 ...
                 </div>
-                
+            </div>
+
+            <div class="absolute bottom-[120px] left-0 w-full flex justify-center space-x-6 z-50">
                 <template v-if="gameState.currentTurn === mySeat">
                     <button v-if="selectedTileIndex !== null && hand.length % 3 === 2" @click="discardTile" 
                             class="px-12 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full shadow-lg border-2 border-green-400 transition transform hover:scale-105 text-2xl tracking-widest animate-pulse">
@@ -465,7 +467,7 @@
                         <div class="flex">
                             <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
                                  :class="['mahjong-tile out-tile', getTileClass(group.tile)]">
-                                <img :src="getTileImage(group.tile)" class="w-full h-full object-cover pointer-events-none" style="transform: scale(1.35);" />
+                                <img :src="getTileImage(group.tile)" class="w-full h-full object-cover pointer-events-none p-1" style="transform: scale(1.15);" />
                             </div>
                         </div>
                         <div class="text-xs text-white/50 self-end ml-1">{{ formatActionName(group.type) }}</div>
@@ -493,7 +495,7 @@
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
                                   selectedTileIndex === index ? 'selected-tile' : '',
                                   draggedTileIndex !== null && dragOverIndex === index ? (index > draggedTileIndex ? 'ml-10' : 'mr-10') : '']">
-                        <img :src="getTileImage(tile)" class="w-full h-full object-cover pointer-events-none" style="transform: scale(1.35);" />
+                        <img :src="getTileImage(tile)" class="w-full h-full object-cover pointer-events-none p-[2px]" style="transform: scale(1.15);" />
                     </div>
                 </div>
             </div>
@@ -794,6 +796,7 @@
 
                     let file = '';
 
+                    // 修复：由于 FluffyStuff 库里的 1-9 是在前面的，比如 Man1, Pin2, Sou3
                     if (tile.includes('万')) {
                         file = `Man${tile.charAt(0)}`;
                     } else if (tile.includes('筒')) {
@@ -813,6 +816,11 @@
                     // 特殊处理白板，FluffyStuff 库里的 Haku 是全白的，我们用另外一个带边框的白板图片来代替
                     if (file === 'Haku') {
                         return 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/Blank.svg';
+                    }
+
+                    // 修复一索：在 FluffyStuff 库中，一索的文件名是 Bird.svg 而不是 Sou1.svg
+                    if (file === 'Sou1') {
+                        return `${baseUrl}Bird.svg`;
                     }
 
                     if (file) {
