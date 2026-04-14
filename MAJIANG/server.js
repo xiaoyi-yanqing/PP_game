@@ -158,22 +158,29 @@ io.on('connection', (socket) => {
             room.state = 'rolling'; // 防止重复点击
             
             // 决定谁来掷骰子：如果有上局赢家且仍在房间内，则赢家掷骰子，否则东风掷骰子
-            let rollerSeat = '东';
-            if (room.lastWinner && activeSeats.includes(room.lastWinner)) {
-                rollerSeat = room.lastWinner;
-            }
-            
-            // 掷两枚骰子
-            const dice1 = Math.floor(Math.random() * 6) + 1;
-            const dice2 = Math.floor(Math.random() * 6) + 1;
-            const diceSum = dice1 + dice2;
-            
-            // 计算先手位置：从掷骰子的人开始，逆时针数（在数组中是向右移动）
-            const rollerIdx = activeSeats.indexOf(rollerSeat);
-            const starterIdx = (rollerIdx + diceSum - 1) % activeSeats.length;
-            const starterSeat = activeSeats[starterIdx];
+        let rollerSeat = '东';
+        if (room.lastWinner && activeSeats.includes(room.lastWinner)) {
+            rollerSeat = room.lastWinner;
+        }
+        
+        // 掷两枚骰子
+        const dice1 = Math.floor(Math.random() * 6) + 1;
+        const dice2 = Math.floor(Math.random() * 6) + 1;
+        const diceSum = dice1 + dice2;
+        
+        // 按照麻将标准的4个方位（东南西北）计算：从掷骰子的人开始逆时针数
+        const fixedSeats = ['东', '南', '西', '北'];
+        const rollerIdxFixed = fixedSeats.indexOf(rollerSeat);
+        let targetFixedIdx = (rollerIdxFixed + diceSum - 1) % 4;
+        let starterSeat = fixedSeats[targetFixedIdx];
 
-            // 广播掷骰子事件，让客户端展示动画
+        // 如果算出的座位上没有人，则顺延给下一个有人的座位（根据实际情况来）
+        while (!activeSeats.includes(starterSeat)) {
+            targetFixedIdx = (targetFixedIdx + 1) % 4;
+            starterSeat = fixedSeats[targetFixedIdx];
+        }
+
+        // 广播掷骰子事件，让客户端展示动画
             io.to(room.id).emit('diceRolled', { 
                 dice1, 
                 dice2, 
@@ -504,11 +511,11 @@ function startGame(room, starterSeat = '东') {
 
     io.to(room.id).emit('gameStateUpdated', getGameState(room));
     
-    // 给东风发第一张牌
-    const eastSocketId = room.seats['东'];
-    if (eastSocketId) {
+    // 给先手玩家发第一张牌
+    const starterSocketId = room.seats[starterSeat];
+    if (starterSocketId) {
         setTimeout(() => {
-            drawTileForPlayer(room, eastSocketId);
+            drawTileForPlayer(room, starterSocketId);
         }, 1000);
     }
 }
@@ -707,11 +714,20 @@ function getNextTurn(room, currentSeat) {
 }
 
 function sortHand(hand) {
+    const valueMap = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+    const windMap = { '东':1, '南':2, '西':3, '北':4, '红中':5, '发财':6, '白板':7 };
     hand.sort((a, b) => {
         const typeA = winds.includes(a) ? 3 : a.includes('索') ? 2 : a.includes('筒') ? 1 : 0;
         const typeB = winds.includes(b) ? 3 : b.includes('索') ? 2 : b.includes('筒') ? 1 : 0;
         if(typeA !== typeB) return typeA - typeB;
-        return a.localeCompare(b);
+        
+        if (typeA === 3) {
+            return windMap[a] - windMap[b];
+        } else {
+            const valA = valueMap[a.charAt(0)] || 0;
+            const valB = valueMap[b.charAt(0)] || 0;
+            return valA - valB;
+        }
     });
 }
 

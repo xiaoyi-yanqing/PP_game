@@ -627,6 +627,7 @@
                         pendingTing.value = false;
                         availableActions.value = [];
                         view.value = 'game';
+                        sortHand(); // 游戏开始时先理一次牌
                     });
 
                     socket.on('gameStateUpdated', (state) => {
