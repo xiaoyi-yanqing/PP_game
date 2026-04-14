@@ -780,40 +780,39 @@
 
                 const isWind = (tile) => winds.includes(tile);
                 
-                // 将文字牌映射为真实麻将图片（使用传统风格）
+                // 将文字牌映射为真实麻将图片
                 const getTileImage = (tile) => {
                     const emptyImg = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                     if (!tile || typeof tile !== 'string') return emptyImg;
                     
-                    // 使用 WarL0ckNet 提供的更稳定、无 LFS 问题的基础麻将 SVG
-                    const baseUrl = 'https://cdn.jsdelivr.net/gh/WarL0ckNet/tile-art@master/simple_tiles/';
+                    const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/';
                     
                     const honorMap = { 
-                        '东': 'tan', '南': 'nan', '西': 'xia', '北': 'pei', 
-                        '红中': 'chun', '发财': 'hatsu', '白板': 'haku' // 此 SVG 库中的 haku.svg 实际上就是带蓝色方框图案的白板
+                        '东': 'Ton', '南': 'Nan', '西': 'Sha', '北': 'Pei', 
+                        '红中': 'Chun', '发财': 'Hatsu', '白板': 'Haku'
                     };
 
                     let file = '';
 
                     if (tile.includes('万')) {
-                        file = `${tile.charAt(0)}man`;
+                        file = `Man${tile.charAt(0)}`;
                     } else if (tile.includes('筒')) {
-                        file = `${tile.charAt(0)}pin`;
+                        file = `Pin${tile.charAt(0)}`;
                     } else if (tile.includes('索')) {
-                        file = `${tile.charAt(0)}sou`;
+                        file = `Sou${tile.charAt(0)}`;
                     } else if (honorMap[tile]) {
                         file = honorMap[tile];
                     }
                     
                     // 转换中文数字为阿拉伯数字
                     const numMap = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
-                    if (file && numMap[file.charAt(0)]) {
-                        file = numMap[file.charAt(0)] + file.substring(1);
+                    if (file && numMap[file.charAt(file.length - 1)]) {
+                        file = file.slice(0, -1) + numMap[file.charAt(file.length - 1)];
                     }
 
-                    // 特殊处理白板，使用 FluffyStuff 的带边框白板，避免全白看不清
-                    if (file === 'haku') {
-                        return 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/Haku.svg';
+                    // 特殊处理白板，FluffyStuff 库里的 Haku 是全白的，我们用另外一个带边框的白板图片来代替
+                    if (file === 'Haku') {
+                        return 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/Blank.svg';
                     }
 
                     if (file) {
