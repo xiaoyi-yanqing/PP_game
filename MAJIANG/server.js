@@ -217,7 +217,7 @@ io.on('connection', (socket) => {
 
         const player = room.players[socket.id];
         if (!player || room.currentTurn !== player.seat) return;
-        if (player.hand.length >= 14) return; // Already has 14 tiles
+        if (player.hand.length % 3 === 2) return; // Already has a tile to discard
 
         if (room.deck.length === 0) {
             io.to(room.id).emit('gameOver', { message: '流局！牌库已空。' });
@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
 
         const player = room.players[socket.id];
         if (!player || room.currentTurn !== player.seat) return;
-        if (player.hand.length !== 14) return;
+        if (player.hand.length % 3 !== 2) return;
 
         const { index, isTingAction } = data;
         const tile = player.hand[index];
