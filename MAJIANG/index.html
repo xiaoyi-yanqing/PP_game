@@ -809,6 +809,7 @@
                     
                     // 转换中文数字为阿拉伯数字
                     const numMap = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+                    // 由于前面已经把 `tile.charAt(0)` 的数字放到了最后面（比如 "二万" -> "Man二"），现在要把它转换成阿拉伯数字 -> "Man2"
                     if (file && numMap[file.charAt(file.length - 1)]) {
                         file = file.slice(0, -1) + numMap[file.charAt(file.length - 1)];
                     }
@@ -818,9 +819,10 @@
                         return 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/Blank.svg';
                     }
 
-                    // 修复一索：在 FluffyStuff 库中，一索的文件名是 Bird.svg 而不是 Sou1.svg
+                    // 修复一索：在 FluffyStuff 库中，一索的文件名是 Bird.svg 或者 Sou1.svg（部分分支是 Bird，为了兼容全用 Sou1 试试看，实际上原库中有 Sou1.svg）
+                    // 之前的写法导致一索有时匹配不上。我们统一：
                     if (file === 'Sou1') {
-                        return `${baseUrl}Bird.svg`;
+                        return `${baseUrl}Sou1.svg`; // FluffyStuff库默认其实有Sou1.svg，或者用Bird.svg
                     }
 
                     if (file) {
