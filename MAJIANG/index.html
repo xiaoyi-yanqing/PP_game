@@ -28,32 +28,32 @@
         }
         /* 拟真麻将牌样式 */
         .mahjong-tile {
-            width: 46px; 
-            height: 64px;
+            width: 54px; 
+            height: 76px;
             background: linear-gradient(to bottom, #ffffff 75%, #e0e0e0 100%);
-            border-radius: 6px;
-            border-bottom: 6px solid #4ade80; /* 绿色牌背 */
-            border-right: 1px solid #ccc;
+            border-radius: 8px;
+            border-bottom: 8px solid #4ade80; /* 绿色牌背 */
+            border-right: 2px solid #ccc;
             border-left: 1px solid #fff;
-            box-shadow: 2px 4px 6px rgba(0,0,0,0.3);
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
             display: flex; 
             align-items: center; 
             justify-content: center;
             font-weight: bold; 
-            font-size: 1.4rem; 
+            font-size: 1.6rem; 
             cursor: pointer;
             user-select: none;
             transition: transform 0.1s;
         }
         .mahjong-tile:hover {
-            transform: translateY(-10px);
+            transform: translateY(-12px);
         }
         .mahjong-tile.wind { color: #2563eb; } /* 风牌蓝色 */
         .mahjong-tile.wan { color: #dc2626; } /* 万字红色 */
         .mahjong-tile.tong { color: #059669; } /* 筒子绿色 */
         
         .discard-tile {
-            width: 34px; height: 48px; font-size: 1rem; border-bottom: 4px solid #4ade80;
+            width: 42px; height: 60px; font-size: 1.2rem; border-bottom: 5px solid #4ade80;
         }
         .action-btn {
             background: linear-gradient(to bottom, #fde047, #f59e0b);
@@ -648,9 +648,9 @@
                         
                         selectedTileIndex.value = null; // 每次手牌更新后取消选中状态
 
-                        // 如果不是刚摸牌（比如是碰杠之后），或者是别人出牌导致我手牌更新，再理牌
-                        // 如果是刚摸牌，我们暂不理牌，保留在最后一张，并附带动画
-                        if (!data.drawAnimation) {
+                        // 只有在非摸牌状态下才理牌（例如：游戏开始、碰杠之后、别人出牌导致我的手牌数据刷新）
+                        // 摸牌时保持新牌在最右边，用户打出一张牌后，手牌数量变为 %3===1，此时理牌会自动将其插入正确位置
+                        if (!data.drawAnimation && hand.value.length % 3 !== 2) {
                             sortHand();
                         }
                         

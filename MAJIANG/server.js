@@ -245,7 +245,7 @@ io.on('connection', (socket) => {
 
         if (isTingAction) {
             if (!winds.includes(tile)) {
-                return socket.emit('errorMsg', '报听时必须打出风牌！');
+                return socket.emit('errorMsg', '报听时必须打出字牌（东南西北中发白）！');
             }
             
             // 【前置校验】判断打出这张牌后，剩下的 13 张牌是否处于“听牌”状态
