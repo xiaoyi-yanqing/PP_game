@@ -467,8 +467,14 @@
                         <div class="flex">
                             <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
                                  :class="['mahjong-tile out-tile relative', getTileClass(group.tile)]">
-                                <img :src="getTileImage(group.tile)" class="w-full h-full object-cover pointer-events-none p-1 relative z-10" style="transform: scale(1.15);" @error="onImageError" />
-                                <span class="absolute inset-0 flex items-center justify-center font-bold text-xs z-0 text-black pointer-events-none">{{ group.tile }}</span>
+                                <!-- 图片加载成功时盖在最上面，背景也是透明的，失败时触发onImageError隐藏自己 -->
+                                <img :src="getTileImage(group.tile)" 
+                                     class="w-full h-full object-cover pointer-events-none p-1 absolute inset-0 z-20" 
+                                     style="transform: scale(1.15);" 
+                                     @error="onImageError" 
+                                     @load="onImageLoad" />
+                                <!-- 垫底的备用文字，默认透明度为0，被上面的图片挡住。当图片加载失败隐藏时，这层文字也不会显示，因为默认隐藏了，只有在专门的方法里把它显现 -->
+                                <span class="fallback-text absolute inset-0 flex items-center justify-center font-bold text-xs z-10 text-black pointer-events-none hidden">{{ group.tile }}</span>
                             </div>
                         </div>
                         <div class="text-xs text-white/50 self-end ml-1">{{ formatActionName(group.type) }}</div>
@@ -496,9 +502,14 @@
                                   isDrawing && index === hand.length - 1 ? 'animate-draw' : '',
                                   selectedTileIndex === index ? 'selected-tile' : '',
                                   draggedTileIndex !== null && dragOverIndex === index ? (index > draggedTileIndex ? 'ml-10' : 'mr-10') : '']">
-                        <img :src="getTileImage(tile)" class="w-full h-full object-cover pointer-events-none p-[2px] relative z-10" style="transform: scale(1.15);" @error="onImageError" />
-                        <!-- 备用文字显示，当图片加载失败时显示，防止变成红叉 -->
-                        <span class="absolute inset-0 flex items-center justify-center font-bold text-lg z-0 text-black pointer-events-none">{{ tile }}</span>
+                        <!-- 图片 -->
+                        <img :src="getTileImage(tile)" 
+                             class="w-full h-full object-cover pointer-events-none p-[2px] absolute inset-0 z-20" 
+                             style="transform: scale(1.15);" 
+                             @error="onImageError" 
+                             @load="onImageLoad" />
+                        <!-- 备用文字显示，默认隐藏，图片加载失败时显示 -->
+                        <span class="fallback-text absolute inset-0 flex items-center justify-center font-bold text-lg z-10 text-black pointer-events-none hidden">{{ tile }}</span>
                     </div>
                 </div>
             </div>
@@ -793,7 +804,7 @@
                     const baseUrl = 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/';
                     
                     const honorMap = { 
-                        '东': 'Ton', '南': 'Nan', '西': 'Sha', '北': 'Pei', 
+                        '东': 'Ton', '南': 'Nan', '西': 'Saa', '北': 'Pei', 
                         '红中': 'Chun', '发财': 'Hatsu', '白板': 'Haku'
                     };
 
@@ -819,7 +830,7 @@
 
                     // 特殊处理白板，FluffyStuff 库里的 Haku 是全白的，我们用另外一个带边框的白板图片来代替
                     if (file === 'Haku') {
-                        return 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular/Blank.svg';
+                        return `${baseUrl}Front.svg`;
                     }
 
                     // 修复一索：在 FluffyStuff 库中，一索的文件名是 Bird.svg 或者 Sou1.svg（部分分支是 Bird，为了兼容全用 Sou1 试试看，实际上原库中有 Sou1.svg）
@@ -835,9 +846,20 @@
                     return emptyImg;
                 };
 
-                // 图片加载失败时的回退处理（隐藏错误图标，让底部的文字露出来）
+                // 图片加载失败时的回退处理：隐藏自己，并让兄弟元素（文字 span）显示出来
                 const onImageError = (e) => {
                     e.target.style.display = 'none';
+                    if (e.target.nextElementSibling && e.target.nextElementSibling.classList.contains('fallback-text')) {
+                        e.target.nextElementSibling.classList.remove('hidden');
+                    }
+                };
+
+                // 图片加载成功时的处理：确保自己显示，文字隐藏
+                const onImageLoad = (e) => {
+                    e.target.style.display = 'block';
+                    if (e.target.nextElementSibling && e.target.nextElementSibling.classList.contains('fallback-text')) {
+                        e.target.nextElementSibling.classList.add('hidden');
+                    }
                 };
 
                 const getTileClass = (tile) => {
@@ -1173,7 +1195,7 @@
                     showCoins, coins, godMode,
                     canStartGame, requestStartGame, confirmDeal, diceState, draggedTileIndex, dragOverIndex,
                     onDragStart, onDragOver, onDragLeave, onTouchMove, onTouchCancelOrEnd, onDrop,
-                    drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile, onImageError
+                    drawTile, declareTing, cancelTing, discardTile, selectTile, isWind, getTileClass, getTileImage, doAction, formatActionName, getWallStacks, getRelativePlayer, visibleDiscardPile, onImageError, onImageLoad
                 };
             }
         }).mount('#app');
