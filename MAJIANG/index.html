@@ -28,6 +28,7 @@
         }
         /* 拟真麻将牌样式 */
         .mahjong-tile {
+            position: relative; /* 添加相对定位，限制内部绝对定位的元素（如备用文字） */
             width: 46px; 
             height: 64px;
             background: linear-gradient(to bottom, #ffffff 75%, #e0e0e0 100%);
@@ -466,10 +467,10 @@
                     <div v-for="(group, idx) in outTiles" :key="idx" class="flex flex-row items-center bg-black/30 p-1 rounded">
                         <div class="flex">
                             <div v-for="n in (group.type === 'peng' ? 3 : 4)" :key="n" 
-                                 :class="['mahjong-tile out-tile relative', getTileClass(group.tile)]">
+                                 :class="['mahjong-tile out-tile', getTileClass(group.tile)]">
                                 <!-- 图片加载成功时盖在最上面，背景也是透明的，失败时触发onImageError隐藏自己 -->
                                 <img :src="getTileImage(group.tile)" 
-                                     class="w-full h-full object-cover pointer-events-none p-1 absolute inset-0 z-20" 
+                                     class="w-full h-full object-cover pointer-events-none p-1 relative z-20" 
                                      style="transform: scale(1.15);" 
                                      @error="onImageError" 
                                      @load="onImageLoad" />
@@ -504,7 +505,7 @@
                                   draggedTileIndex !== null && dragOverIndex === index ? (index > draggedTileIndex ? 'ml-10' : 'mr-10') : '']">
                         <!-- 图片 -->
                         <img :src="getTileImage(tile)" 
-                             class="w-full h-full object-cover pointer-events-none p-[2px] absolute inset-0 z-20" 
+                             class="w-full h-full object-cover pointer-events-none p-[2px] relative z-20" 
                              style="transform: scale(1.15);" 
                              @error="onImageError" 
                              @load="onImageLoad" />
