@@ -4,20 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>食品安全专家 - 全成分深度扫描</title>
-    <script src="https://unpkg.com"></script>
+    <!-- Tesseract.js for OCR -->
+    <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    <!-- HTML5-QRCode for Barcode/QR scanning -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root { --danger: #ff4d4f; --warning: #faad14; --info: #1890ff; --safe: #52c41a; }
         body { font-family: -apple-system, sans-serif; background: #f4f7f6; padding: 15px; line-height: 1.5; color: #333; }
         .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        .btn-main { display: block; width: 100%; background: var(--info); color: white; text-align: center; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 10px; border: none; font-size: 16px; }
+        .btn-main { display: block; width: 100%; background: var(--info); color: white; text-align: center; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 10px; border: none; font-size: 16px; box-sizing: border-box; }
         .btn-sub { background: #e6f7ff; color: var(--info); border: 1px solid #91d5ff; }
-        #status { text-align: center; margin: 10px 0; font-size: 14px; color: #666; min-height: 20px; }
+        #status { text-align: center; margin: 10px 0; font-size: 14px; color: #666; min-height: 20px; word-break: break-all; }
         .report-section { border-radius: 10px; padding: 15px; margin-top: 15px; display: none; }
         .danger-bg { background: #fff1f0; border-left: 5px solid var(--danger); }
         .warning-bg { background: #fffbe6; border-left: 5px solid var(--warning); }
         .section-title { font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; font-size: 16px; }
         .item-tag { display: inline-block; background: white; padding: 2px 8px; border-radius: 4px; margin: 3px; font-size: 13px; border: 1px solid #ddd; font-weight: 500; }
         .advice { font-size: 12px; color: #777; margin-top: 8px; font-style: italic; border-top: 1px dashed #ddd; padding-top: 5px; }
+        #reader { width: 100%; display: none; margin-bottom: 10px; border-radius: 12px; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -31,8 +35,13 @@
         <input type="file" id="ocrInput" accept="image/*" capture="environment" style="display: none;">
     </label>
     
-    <button class="btn-main btn-sub" onclick="cloudScan()">
-        🏷️ 输入条形码云端查询
+    <button class="btn-main btn-sub" onclick="toggleScanner()">
+        🔍 扫描商品条码/二维码
+    </button>
+    <div id="reader"></div>
+
+    <button class="btn-main btn-sub" onclick="cloudScanPrompt()" style="margin-top: 10px;">
+        🏷️ 手动输入条形码
     </button>
     
     <div id="status">准备就绪</div>
@@ -51,6 +60,11 @@
         <div class="section-title">🟡 需注意的添加剂</div>
         <div id="warningList"></div>
         <div class="advice">提示：合法但建议限制摄入，对特定人群（如痛风、儿童）有影响。</div>
+    </div>
+    
+    <div id="safeArea" class="report-section" style="background: #f6ffed; border-left: 5px solid var(--safe);">
+        <div class="section-title">🟢 未检测到敏感成分</div>
+        <div class="advice">配料表相对干净，或商品未包含监控词汇。</div>
     </div>
 </div>
 
@@ -111,6 +125,7 @@ const MASTER_DB = {
 
 const statusTxt = document.getElementById('status');
 const reportBox = document.getElementById('reportBox');
+let html5QrCode;
 
 // 拍照分析逻辑
 document.getElementById('ocrInput').onchange = async function(e) {
@@ -124,26 +139,88 @@ document.getElementById('ocrInput').onchange = async function(e) {
         const { data: { text } } = await Tesseract.recognize(file, 'chi_sim');
         runAnalysis(text, "拍照识别报告");
     } catch (err) {
+        console.error(err);
         statusTxt.innerText = "❌ 识别失败，请确保文字清晰";
     }
 };
 
+// 扫码逻辑
+function toggleScanner() {
+    const readerDiv = document.getElementById('reader');
+    if (readerDiv.style.display === 'block') {
+        stopScanner();
+        return;
+    }
+    
+    readerDiv.style.display = 'block';
+    statusTxt.innerText = "📷 正在启动相机...";
+    reportBox.style.display = 'none';
+    
+    html5QrCode = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+    .then(() => {
+        statusTxt.innerText = "📷 请将条码/二维码放入框内进行扫描";
+    })
+    .catch((err) => {
+        statusTxt.innerText = "❌ 无法调用摄像头，请检查权限或尝试使用 HTTPS。";
+        console.error(err);
+    });
+}
+
+function stopScanner() {
+    if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+            document.getElementById('reader').style.display = 'none';
+            statusTxt.innerText = "准备就绪";
+        }).catch(err => console.error(err));
+    }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    stopScanner();
+    statusTxt.innerText = `✅ 扫码成功: ${decodedText}，正在查询...`;
+    fetchCloudData(decodedText);
+}
+
+function onScanFailure(error) {
+    // 忽略持续扫描中的失败
+}
+
 // 云端条码逻辑
-async function cloudScan() {
+function cloudScanPrompt() {
     const code = prompt("请输入商品 13 位条形码:");
     if (!code) return;
-    statusTxt.innerText = "🌐 调取全球数据库 (Open Food Facts)...";
+    fetchCloudData(code);
+}
+
+async function fetchCloudData(code) {
+    statusTxt.innerText = `🌐 调取全球数据库 (Open Food Facts) 查询条码: ${code}...`;
+    reportBox.style.display = 'none';
     
     try {
-        const res = await fetch(`https://openfoodfacts.org{code}.json`);
+        // Open Food Facts API v0
+        const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
         const data = await res.json();
+        
         if (data.status === 1) {
-            const ingredients = data.product.ingredients_text_zh || data.product.ingredients_text || "";
-            runAnalysis(ingredients, data.product.product_name || "云端库商品");
+            const product = data.product;
+            const ingredients = product.ingredients_text_zh || product.ingredients_text || "";
+            const productName = product.product_name_zh || product.product_name || `商品 (${code})`;
+            
+            if (ingredients.trim() === "") {
+                statusTxt.innerText = `⚠️ 找到商品 "${productName}"，但数据库中缺乏配料表信息。`;
+            } else {
+                runAnalysis(ingredients, productName);
+            }
         } else {
-            statusTxt.innerText = "❓ 数据库暂未收录该商品";
+            statusTxt.innerText = "❓ 数据库暂未收录该商品，可以尝试拍配料表";
         }
-    } catch (err) { statusTxt.innerText = "❌ 网络连接失败"; }
+    } catch (err) { 
+        console.error(err);
+        statusTxt.innerText = "❌ 网络连接失败或请求超时"; 
+    }
 }
 
 // 核心比对引擎
@@ -171,23 +248,32 @@ function runAnalysis(rawText, title) {
 
     // 渲染结果
     document.getElementById('reportTitle').innerText = title;
+    reportBox.style.display = 'block';
+    
+    let hasIssues = false;
     
     if (results.danger.length > 0) {
         document.getElementById('dangerArea').style.display = 'block';
         document.getElementById('dangerList').innerHTML = [...new Set(results.danger)].join("");
-    } else { document.getElementById('dangerArea').style.display = 'none'; }
+        hasIssues = true;
+    } else { 
+        document.getElementById('dangerArea').style.display = 'none'; 
+    }
 
     if (results.warning.length > 0) {
         document.getElementById('warningArea').style.display = 'block';
         document.getElementById('warningList').innerHTML = [...new Set(results.warning)].join("");
-    } else { document.getElementById('warningArea').style.display = 'none'; }
+        hasIssues = true;
+    } else { 
+        document.getElementById('warningArea').style.display = 'none'; 
+    }
 
-    if (results.danger.length + results.warning.length > 0) {
+    if (hasIssues) {
         statusTxt.innerHTML = "✅ 分析完成，请查看下方报告";
-        reportBox.style.display = 'block';
+        document.getElementById('safeArea').style.display = 'none';
     } else {
-        statusTxt.innerHTML = "✅ 未发现库中定义的敏感成分，请结合常识判断。";
-        reportBox.style.display = 'none';
+        statusTxt.innerHTML = "✅ 分析完成，未发现库中定义的敏感成分。";
+        document.getElementById('safeArea').style.display = 'block';
     }
 }
 </script>
