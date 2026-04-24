@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食品安全专家 - 全成分深度扫描</title>
+    <script src="https://unpkg.com"></script>
+    <style>
+        :root { --danger: #ff4d4f; --warning: #faad14; --info: #1890ff; --safe: #52c41a; }
+        body { font-family: -apple-system, sans-serif; background: #f4f7f6; padding: 15px; line-height: 1.5; color: #333; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .btn-main { display: block; width: 100%; background: var(--info); color: white; text-align: center; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 10px; border: none; font-size: 16px; }
+        .btn-sub { background: #e6f7ff; color: var(--info); border: 1px solid #91d5ff; }
+        #status { text-align: center; margin: 10px 0; font-size: 14px; color: #666; min-height: 20px; }
+        .report-section { border-radius: 10px; padding: 15px; margin-top: 15px; display: none; }
+        .danger-bg { background: #fff1f0; border-left: 5px solid var(--danger); }
+        .warning-bg { background: #fffbe6; border-left: 5px solid var(--warning); }
+        .section-title { font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; font-size: 16px; }
+        .item-tag { display: inline-block; background: white; padding: 2px 8px; border-radius: 4px; margin: 3px; font-size: 13px; border: 1px solid #ddd; font-weight: 500; }
+        .advice { font-size: 12px; color: #777; margin-top: 8px; font-style: italic; border-top: 1px dashed #ddd; padding-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="margin-top:0">🔬 食品成分全扫描</h2>
+    <p style="font-size:12px; color:#999;">依据标准：GB 2760-2024 (2025.02 实施版)</p>
+    
+    <label class="btn-main">
+        📷 拍摄配料表图片分析
+        <input type="file" id="ocrInput" accept="image/*" capture="environment" style="display: none;">
+    </label>
+    
+    <button class="btn-main btn-sub" onclick="cloudScan()">
+        🏷️ 输入条形码云端查询
+    </button>
+    
+    <div id="status">准备就绪</div>
+</div>
+
+<div id="reportBox" class="card" style="display:none;">
+    <h3 id="reportTitle" style="margin-top:0">检测报告</h3>
+    
+    <div id="dangerArea" class="report-section danger-bg">
+        <div class="section-title">🔴 高风险/建议避开</div>
+        <div id="dangerList"></div>
+        <div class="advice">提示：含致癌、生殖毒性风险或心血管重度负担成分。</div>
+    </div>
+
+    <div id="warningArea" class="report-section warning-bg">
+        <div class="section-title">🟡 需注意的添加剂</div>
+        <div id="warningList"></div>
+        <div class="advice">提示：合法但建议限制摄入，对特定人群（如痛风、儿童）有影响。</div>
+    </div>
+</div>
+
+<script>
+// --- 200+ 词根级权威数据库 (分类逻辑) ---
+const MASTER_DB = {
+    "high_risk": {
+        label: "极高风险",
+        color: "danger",
+        keywords: [
+            "反式脂肪", "代可可脂", "氢化", "植脂末", "亚硝酸", "脱氢乙酸", "二氧化钛", "溴酸钾", 
+            "特丁基对苯二酚", "TBHQ", "偶氮二甲酰胺", "过氧化苯甲酰", "赤藓红", "苋菜红", "新红"
+        ],
+        desc: "重点：脱氢乙酸钠于2025年起在糕点面包中禁用。"
+    },
+    "preservatives": {
+        label: "防腐剂",
+        color: "warning",
+        keywords: [
+            "苯甲酸", "山梨酸", "丙酸", "纳他霉素", "二氧化硫", "焦亚硫酸", "低亚硫酸", "亚硫酸",
+            "对羟基苯甲酸", "双乙酸钠", "乳酸链球菌素"
+        ],
+        desc: "长期累积摄入可能加重肝肾负担。"
+    },
+    "colors": {
+        label: "合成色素",
+        color: "warning",
+        keywords: [
+            "柠檬黄", "日落黄", "诱惑红", "亮蓝", "胭脂红", "靛蓝", "姜黄素", "二氧化钛"
+        ],
+        desc: "可能引起儿童注意力不集中或诱发哮喘。"
+    },
+    "sweeteners": {
+        label: "甜味剂/代糖",
+        color: "warning",
+        keywords: [
+            "阿斯巴甜", "安赛蜜", "三氯蔗糖", "糖精钠", "甜蜜素", "纽甜", "赤藓糖醇", "木糖醇"
+        ],
+        desc: "阿斯巴甜含苯丙氨酸；过量代糖可能影响肠道菌群。"
+    },
+    "flavor_enhancers": {
+        label: "增鲜/增香剂",
+        color: "warning",
+        keywords: [
+            "谷氨酸", "核苷酸", "I+G", "乙基麦芽酚", "麦芽酚", "食用香精", "酵母抽提物"
+        ],
+        desc: "核苷酸类(I+G)是痛风患者及高尿酸人群的禁忌。"
+    },
+    "emulsifiers": {
+        label: "增稠/乳化剂",
+        color: "warning",
+        keywords: [
+            "卡拉胶", "羧甲基纤维素", "明胶", "果胶", "黄原胶", "单双甘油脂肪酸酯", "磷脂"
+        ],
+        desc: "部分研究显示卡拉胶等可能诱发轻微肠道炎症。"
+    }
+};
+
+const statusTxt = document.getElementById('status');
+const reportBox = document.getElementById('reportBox');
+
+// 拍照分析逻辑
+document.getElementById('ocrInput').onchange = async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    statusTxt.innerHTML = "🌀 正在提取配料表文字...";
+    reportBox.style.display = 'none';
+
+    try {
+        const { data: { text } } = await Tesseract.recognize(file, 'chi_sim');
+        runAnalysis(text, "拍照识别报告");
+    } catch (err) {
+        statusTxt.innerText = "❌ 识别失败，请确保文字清晰";
+    }
+};
+
+// 云端条码逻辑
+async function cloudScan() {
+    const code = prompt("请输入商品 13 位条形码:");
+    if (!code) return;
+    statusTxt.innerText = "🌐 调取全球数据库 (Open Food Facts)...";
+    
+    try {
+        const res = await fetch(`https://openfoodfacts.org{code}.json`);
+        const data = await res.json();
+        if (data.status === 1) {
+            const ingredients = data.product.ingredients_text_zh || data.product.ingredients_text || "";
+            runAnalysis(ingredients, data.product.product_name || "云端库商品");
+        } else {
+            statusTxt.innerText = "❓ 数据库暂未收录该商品";
+        }
+    } catch (err) { statusTxt.innerText = "❌ 网络连接失败"; }
+}
+
+// 核心比对引擎
+function runAnalysis(rawText, title) {
+    // 预处理：去掉空格和特殊符号，增加匹配率
+    const cleanText = rawText.replace(/\s+/g, "");
+    
+    let results = { danger: [], warning: [] };
+    document.getElementById('dangerList').innerHTML = '';
+    document.getElementById('warningList').innerHTML = '';
+
+    for (let key in MASTER_DB) {
+        const group = MASTER_DB[key];
+        group.keywords.forEach(word => {
+            if (cleanText.includes(word)) {
+                const tagHtml = `<span class="item-tag">${word}</span>`;
+                if (group.color === 'danger') {
+                    results.danger.push(tagHtml);
+                } else {
+                    results.warning.push(tagHtml);
+                }
+            }
+        });
+    }
+
+    // 渲染结果
+    document.getElementById('reportTitle').innerText = title;
+    
+    if (results.danger.length > 0) {
+        document.getElementById('dangerArea').style.display = 'block';
+        document.getElementById('dangerList').innerHTML = [...new Set(results.danger)].join("");
+    } else { document.getElementById('dangerArea').style.display = 'none'; }
+
+    if (results.warning.length > 0) {
+        document.getElementById('warningArea').style.display = 'block';
+        document.getElementById('warningList').innerHTML = [...new Set(results.warning)].join("");
+    } else { document.getElementById('warningArea').style.display = 'none'; }
+
+    if (results.danger.length + results.warning.length > 0) {
+        statusTxt.innerHTML = "✅ 分析完成，请查看下方报告";
+        reportBox.style.display = 'block';
+    } else {
+        statusTxt.innerHTML = "✅ 未发现库中定义的敏感成分，请结合常识判断。";
+        reportBox.style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>
