@@ -137,6 +137,10 @@ const MASTER_DB = {
 };
 
 const LOCAL_CACHE_KEY = "food-scan-cache-v1";
+const CLOUD_SOURCE_CONFIG = {
+    // 填入探数平台的商品条码查询 key，例如: "xxxxxxxx"
+    tanshuKey: "920cacdc29d30037c7c434d19a82aee2"
+};
 const statusTxt = document.getElementById("status");
 const cacheMeta = document.getElementById("cacheMeta");
 const actionArea = document.getElementById("actionArea");
@@ -244,6 +248,62 @@ function consumeCachedEntry(entry, code) {
     runAnalysis(currentIngredients, `${currentProductName}（缓存）`);
 }
 
+async function queryOpenFoodFactsProduct(code) {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+    const data = await res.json();
+    data.source = "openfoodfacts-product";
+    return data;
+}
+
+async function queryOpenFoodFactsSearch(code) {
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(code)}&search_simple=1&action=process&json=1&page_size=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const products = Array.isArray(data.products) ? data.products : [];
+
+    const matchedProduct = products.find((item) => {
+        const productCode = normalizeBarcode(item.code);
+        return productCode === normalizeBarcode(code);
+    }) || products[0];
+
+    return {
+        status: matchedProduct ? 1 : 0,
+        product: matchedProduct || null,
+        source: "openfoodfacts-search"
+    };
+}
+
+async function queryTanshuBarcode(code) {
+    const key = (CLOUD_SOURCE_CONFIG.tanshuKey || "").trim();
+    if (!key) {
+        return {
+            status: -1,
+            product: null,
+            message: "missing_key"
+        };
+    }
+
+    const url = `https://api2.tanshuapi.com/api/barcode/v1/index?key=${encodeURIComponent(key)}&barcode=${encodeURIComponent(code)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const payload = data.data || {};
+
+    return {
+        status: data.code === 1 ? 1 : 0,
+        product: data.code === 1 ? {
+            code: payload.barcode || code,
+            product_name: payload.goods_name || payload.name || `商品 (${code})`,
+            product_name_zh: payload.goods_name || payload.name || "",
+            ingredients_text: payload.ingredients_text || payload.ingredients || "",
+            ingredients_text_zh: payload.ingredients_text_zh || payload.ingredients_zh || "",
+            brands: payload.brand || "",
+            image_url: payload.image || ""
+        } : null,
+        message: data.msg || "",
+        source: "tanshu"
+    };
+}
+
 ocrInput.onchange = async function(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -337,12 +397,6 @@ function lookupProduct(code) {
         return;
     }
 
-    const cacheEntry = getCacheEntry(normalizedCode);
-    if (cacheEntry && cacheEntry.ingredients) {
-        consumeCachedEntry(cacheEntry, normalizedCode);
-        return;
-    }
-
     preparePendingProduct(normalizedCode, `商品 (${normalizedCode})`);
     fetchCloudData(normalizedCode);
 }
@@ -352,8 +406,21 @@ async function fetchCloudData(code) {
     reportBox.style.display = "none";
 
     try {
-        const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
-        const data = await res.json();
+        const cacheEntry = getCacheEntry(code);
+        let data = await queryOpenFoodFactsProduct(code);
+
+        if (data.status !== 1) {
+            statusTxt.innerText = `🌐 主接口未命中，正在补查 Open Food Facts 搜索库: ${code}...`;
+            data = await queryOpenFoodFactsSearch(code);
+        }
+
+        if (data.status !== 1) {
+            statusTxt.innerText = `🌐 Open Food Facts 未命中，正在补查探数商品库: ${code}...`;
+            const tanshuData = await queryTanshuBarcode(code);
+            if (tanshuData.status !== -1) {
+                data = tanshuData;
+            }
+        }
 
         if (data.status === 1) {
             const product = data.product || {};
@@ -366,20 +433,40 @@ async function fetchCloudData(code) {
                 upsertLocalCache(code, {
                     productName,
                     ingredients,
-                    source: "openfoodfacts"
+                    source: data.source || "cloud"
                 });
                 hideOcrAction();
                 runAnalysis(ingredients, productName);
+            } else if (cacheEntry && cacheEntry.ingredients) {
+                statusTxt.innerText = `⚠️ 联网已找到“${productName}”，但云端缺配料表，已回退本地缓存`;
+                hideOcrAction();
+                consumeCachedEntry({
+                    ...cacheEntry,
+                    productName: cacheEntry.productName || productName
+                }, code);
             } else {
                 showOcrAction(`⚠️ 已找到“${productName}”，但商品库没有配料表，请拍摄包装背面的配料表`);
             }
         } else {
-            preparePendingProduct(code, `商品 (${code})`);
-            showOcrAction("❓ 商品库暂未收录该条码，请拍摄配料表，识别后会自动写入本地缓存");
+            if (cacheEntry && cacheEntry.ingredients) {
+                statusTxt.innerText = "⚠️ 云端未收录该商品，已回退本地缓存";
+                hideOcrAction();
+                consumeCachedEntry(cacheEntry, code);
+            } else {
+                preparePendingProduct(code, `商品 (${code})`);
+                showOcrAction("❓ 商品库暂未收录该条码，请拍摄配料表，识别后会自动写入本地缓存");
+            }
         }
     } catch (err) {
         console.error(err);
-        showOcrAction("❌ 网络连接失败，请直接拍摄配料表继续分析并写入本地缓存");
+        const cacheEntry = getCacheEntry(code);
+        if (cacheEntry && cacheEntry.ingredients) {
+            statusTxt.innerText = "⚠️ 联网失败，已回退本地缓存";
+            hideOcrAction();
+            consumeCachedEntry(cacheEntry, code);
+        } else {
+            showOcrAction("❌ 网络连接失败，请直接拍摄配料表继续分析并写入本地缓存");
+        }
     }
 }
 
