@@ -93,10 +93,18 @@ const audience = sandbox.getAudienceAdvice(risky);
 assert.deepStrictEqual(Array.from(audience, (item) => item.name), ["成人", "孕妇", "儿童"]);
 assert(audience.find((item) => item.name === "孕妇").level.includes("不建议"));
 assert(audience.find((item) => item.name === "儿童").harm.includes("发育"));
+const adultAdvice = audience.find((item) => item.name === "成人");
+const pregnantAdvice = audience.find((item) => item.name === "孕妇");
+const childAdvice = audience.find((item) => item.name === "儿童");
+assert.strictEqual(adultAdvice.ingredients.length, 3);
+assert(pregnantAdvice.ingredients.some((item) => item.word === "亚硝酸钠"));
+assert(childAdvice.ingredients.some((item) => item.word === "柠檬黄"));
+assert(audience.every((item) => item.ingredients.every((ingredient) => ingredient.harm.includes("可能"))));
 
 const clean = sandbox.collectIngredientAnalysis("配料：饮用水、燕麦、牛奶");
 assert.strictEqual(clean.score, 96);
 assert.strictEqual(sandbox.getSafetySummary(clean).level, "较安全");
+assert(sandbox.getAudienceAdvice(clean).every((item) => item.ingredients.length === 0));
 
 assert(sandbox.getBarcodeFallbackMessage("offline").includes("拍配料表"));
 assert(sandbox.getBarcodeFallbackMessage("scan_timeout").includes("10 秒"));
@@ -105,6 +113,7 @@ assert(sandbox.getBarcodeFallbackMessage("missing_ingredients", "示例商品").
 
 assert(html.includes('id="progressArea"'), "analysis progress bar missing");
 assert(html.includes('id="audienceArea"'), "audience analysis area missing");
+assert(html.includes("audience-ingredient"), "audience ingredient details missing");
 assert(html.includes("const SCAN_TIMEOUT_MS = 10000"), "10-second scan timeout missing");
 assert(html.includes("切换拍配料表"), "scan fallback action missing");
 assert(html.includes("html5-qrcode@2.3.8"), "scanner dependency should be pinned");

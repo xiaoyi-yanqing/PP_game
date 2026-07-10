@@ -50,6 +50,9 @@
         .audience-row { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
         .audience-row:last-child { border-bottom: 0; }
         .audience-head { display: flex; justify-content: space-between; gap: 10px; font-weight: 700; margin-bottom: 3px; }
+        .audience-ingredients { margin-top: 7px; }
+        .audience-ingredient { padding: 6px 0; border-top: 1px dashed #ddd; color: #555; }
+        .audience-ingredient strong { color: #222; }
         .audience-danger { color: #b42318; }
         .audience-warning { color: #ad6800; }
         .audience-safe { color: #237804; }
@@ -1029,24 +1032,35 @@ function getSafetySummary(results) {
 function getAudienceAdvice(results) {
     const highRisk = results.danger.length > 0;
     const needsCare = highRisk || results.warning.length > 0;
+    const allIngredients = [...results.danger, ...results.warning];
+    const dangerWords = new Set(results.danger.map((item) => item.word));
+    const pregnantCategories = new Set(["发色剂", "防腐剂", "合成色素", "甜味剂/代糖"]);
+    const childCategories = new Set(["发色剂", "防腐剂", "合成色素", "甜味剂/代糖", "增鲜/增香剂", "磷酸盐类"]);
+    const details = (items) => items.map((item) => ({
+        word: item.word,
+        harm: `可能危害：${item.injury}`
+    }));
     return [
         {
             name: "成人",
             level: highRisk ? "建议少吃或避开" : needsCare ? "可偶尔食用" : "一般可食用",
             tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
-            harm: highRisk ? "高频摄入可能增加心血管、代谢或胃肠负担。" : "需结合总糖、总钠、过敏史和食用频率判断。"
+            harm: highRisk ? "高频摄入可能增加心血管、代谢或胃肠负担。" : "需结合总糖、总钠、过敏史和食用频率判断。",
+            ingredients: details(allIngredients)
         },
         {
             name: "孕妇",
             level: highRisk ? "不建议食用" : needsCare ? "建议谨慎" : "一般可食用",
             tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
-            harm: "孕期对亚硝酸盐、酒精、过敏原和高加工食品应更谨慎，不能替代医生建议。"
+            harm: "孕期对亚硝酸盐、过敏原和高加工食品应更谨慎，不能替代医生建议。",
+            ingredients: details(allIngredients.filter((item) => dangerWords.has(item.word) || pregnantCategories.has(item.category)))
         },
         {
             name: "儿童",
             level: highRisk ? "不建议食用" : needsCare ? "建议少量" : "一般可食用",
             tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
-            harm: "儿童处于生长发育期，应减少色素、甜味剂、加工肉和高糖高钠食品的高频摄入。"
+            harm: "儿童处于生长发育期，应减少色素、甜味剂、加工肉和高糖高钠食品的高频摄入。",
+            ingredients: details(allIngredients.filter((item) => dangerWords.has(item.word) || childCategories.has(item.category)))
         }
     ];
 }
@@ -1088,6 +1102,11 @@ function runAnalysis(rawText, title, source = "本地风险库") {
         <div class="audience-row">
             <div class="audience-head"><span>${item.name}</span><span class="audience-${item.tone}">${item.level}</span></div>
             <div>${item.harm}</div>
+            <div class="audience-ingredients">
+                ${item.ingredients.length
+                    ? item.ingredients.map((ingredient) => `<div class="audience-ingredient"><strong>${ingredient.word}</strong>：${ingredient.harm}</div>`).join("")
+                    : '<div class="audience-ingredient">未发现本地风险库中的重点提醒配料</div>'}
+            </div>
         </div>
     `).join("");
     reportBox.style.display = "block";
