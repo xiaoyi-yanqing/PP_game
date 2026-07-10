@@ -60,6 +60,10 @@
         .progress-track { height: 9px; overflow: hidden; background: #e8e8e8; border-radius: 5px; }
         .progress-bar { width: 0; height: 100%; background: var(--info); transition: width .2s ease; }
         .progress-text { margin-top: 5px; font-size: 12px; text-align: center; color: #666; }
+        .crop-area { display: none; margin-top: 12px; }
+        .crop-canvas { width: 100%; border: 1px solid #d9d9d9; border-radius: 8px; touch-action: none; box-sizing: border-box; background: #111; }
+        .ocr-review { display: none; margin-top: 12px; }
+        .ocr-review textarea { width: 100%; min-height: 110px; box-sizing: border-box; border: 1px solid #d9d9d9; border-radius: 8px; padding: 10px; font-size: 14px; line-height: 1.5; resize: vertical; }
         .advice { font-size: 12px; color: #777; margin-top: 8px; font-style: italic; border-top: 1px dashed #ddd; padding-top: 5px; }
         #reader { width: 100%; display: none; margin-bottom: 10px; border-radius: 12px; overflow: hidden; }
     </style>
@@ -95,6 +99,18 @@
         <button class="btn-main btn-sub" type="button" onclick="triggerOcrCapture()">
             📷 切换拍配料表
         </button>
+    </div>
+
+    <div id="cropArea" class="crop-area">
+        <canvas id="cropCanvas" class="crop-canvas"
+                onmousedown="startCrop(event)" onmousemove="moveCrop(event)" onmouseup="endCrop()" onmouseleave="endCrop()"
+                ontouchstart="startCrop(event)" ontouchmove="moveCrop(event)" ontouchend="endCrop()"></canvas>
+        <button class="btn-main" type="button" onclick="confirmCropAndRecognize()">确认裁剪并识别</button>
+    </div>
+
+    <div id="ocrReviewArea" class="ocr-review">
+        <textarea id="ocrTextInput" aria-label="识别出的配料文本"></textarea>
+        <button class="btn-main" type="button" onclick="analyzeReviewedOcr()">确认分析</button>
     </div>
 </div>
 
@@ -506,8 +522,7 @@ const CLOUD_SOURCE_CONFIG = {
     tanshuKey: "920cacdc29d30037c7c434d19a82aee2"
 };
 const OCR_LANGUAGE = "chi_sim";
-const OCR_MAX_WIDTH = 1600;
-const OCR_JPEG_QUALITY = 0.82;
+const OCR_MAX_WIDTH = 3600;
 const FETCH_TIMEOUT_MS = 4500;
 const SCAN_TIMEOUT_MS = 10000;
 const BARCODE_FORMATS = window.Html5QrcodeSupportedFormats ? [
@@ -524,6 +539,10 @@ const cacheMeta = document.getElementById("cacheMeta");
 const actionArea = document.getElementById("actionArea");
 const reportBox = document.getElementById("reportBox");
 const ocrInput = document.getElementById("ocrInput");
+const cropArea = document.getElementById("cropArea");
+const cropCanvas = document.getElementById("cropCanvas");
+const ocrReviewArea = document.getElementById("ocrReviewArea");
+const ocrTextInput = document.getElementById("ocrTextInput");
 const progressArea = document.getElementById("progressArea");
 const progressBar = document.getElementById("progressBar");
 const progressText = document.getElementById("progressText");
@@ -533,6 +552,12 @@ let html5QrCode;
 let currentLookupCode = "";
 let currentProductName = "";
 let currentIngredients = "";
+let pendingOcrTitle = "";
+let pendingOcrSource = "";
+let activeCropImage = null;
+let cropRect = null;
+let cropScale = 1;
+let cropDragStart = null;
 let ocrWorkerPromise = null;
 let ocrInProgress = false;
 let scanTimeoutId = null;
@@ -599,6 +624,166 @@ function showOcrAction(message) {
 
 function hideOcrAction() {
     actionArea.style.display = "none";
+}
+
+function getDefaultCropRect(width, height) {
+    return clampCropRect({
+        x: Math.round(width * 0.05),
+        y: Math.round(height * 0.15),
+        width: Math.round(width * 0.9),
+        height: Math.round(height * 0.6)
+    }, width, height);
+}
+
+function clampCropRect(rect, imageWidth, imageHeight) {
+    const minWidth = Math.min(80, imageWidth);
+    const minHeight = Math.min(60, imageHeight);
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const x = clamp(Math.round(rect.x || 0), 0, Math.max(0, imageWidth - minWidth));
+    const y = clamp(Math.round(rect.y || 0), 0, Math.max(0, imageHeight - minHeight));
+    const width = clamp(Math.round(rect.width || minWidth), minWidth, imageWidth - x);
+    const height = clamp(Math.round(rect.height || minHeight), minHeight, imageHeight - y);
+    return { x, y, width, height };
+}
+
+async function showCropArea(file) {
+    activeCropImage = await loadImageElement(file);
+    cropRect = getDefaultCropRect(activeCropImage.width, activeCropImage.height);
+    cropArea.style.display = "block";
+    renderCropCanvas();
+    statusTxt.innerText = "📷 请拖动框选配料表区域，再点击确认裁剪并识别";
+    setProgress(12, "等待裁剪配料表");
+}
+
+function hideCropArea() {
+    cropArea.style.display = "none";
+    cropDragStart = null;
+}
+
+function renderCropCanvas() {
+    if (!activeCropImage || !cropRect) return;
+
+    const width = Math.min(activeCropImage.width, cropArea.clientWidth || activeCropImage.width);
+    cropScale = width / activeCropImage.width;
+    cropCanvas.width = Math.max(1, Math.round(activeCropImage.width * cropScale));
+    cropCanvas.height = Math.max(1, Math.round(activeCropImage.height * cropScale));
+
+    const ctx = cropCanvas.getContext("2d");
+    ctx.drawImage(activeCropImage, 0, 0, cropCanvas.width, cropCanvas.height);
+
+    const x = cropRect.x * cropScale;
+    const y = cropRect.y * cropScale;
+    const widthPx = cropRect.width * cropScale;
+    const heightPx = cropRect.height * cropScale;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, cropCanvas.width, y);
+    ctx.fillRect(0, y + heightPx, cropCanvas.width, cropCanvas.height - y - heightPx);
+    ctx.fillRect(0, y, x, heightPx);
+    ctx.fillRect(x + widthPx, y, cropCanvas.width - x - widthPx, heightPx);
+    ctx.strokeStyle = "#1890ff";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, widthPx, heightPx);
+}
+
+function getCropPoint(event) {
+    const source = event.touches ? event.touches[0] : event;
+    const bounds = cropCanvas.getBoundingClientRect();
+    return {
+        x: Math.round(((source.clientX - bounds.left) / bounds.width) * activeCropImage.width),
+        y: Math.round(((source.clientY - bounds.top) / bounds.height) * activeCropImage.height)
+    };
+}
+
+function startCrop(event) {
+    if (!activeCropImage) return;
+    event.preventDefault();
+    cropDragStart = getCropPoint(event);
+    cropRect = clampCropRect({ x: cropDragStart.x, y: cropDragStart.y, width: 80, height: 60 }, activeCropImage.width, activeCropImage.height);
+    renderCropCanvas();
+}
+
+function moveCrop(event) {
+    if (!activeCropImage || !cropDragStart) return;
+    event.preventDefault();
+    const point = getCropPoint(event);
+    cropRect = clampCropRect({
+        x: Math.min(cropDragStart.x, point.x),
+        y: Math.min(cropDragStart.y, point.y),
+        width: Math.abs(point.x - cropDragStart.x),
+        height: Math.abs(point.y - cropDragStart.y)
+    }, activeCropImage.width, activeCropImage.height);
+    renderCropCanvas();
+}
+
+function endCrop() {
+    cropDragStart = null;
+}
+
+async function confirmCropAndRecognize() {
+    if (!activeCropImage || !cropRect) return;
+
+    reportBox.style.display = "none";
+    hideOcrReview();
+    ocrInProgress = true;
+    setProgress(15, "优化裁剪区域");
+
+    try {
+        const worker = await getOcrWorker();
+        const optimizedImage = await buildOcrImageFromImage(activeCropImage, cropRect);
+        hideCropArea();
+        updateOcrProgress("🌀 正在识别配料信息... 1%");
+        const { data: { text } } = await worker.recognize(optimizedImage);
+        const finalTitle = currentProductName || "拍照识别报告";
+        showOcrReview(text, currentLookupCode ? `${finalTitle}（OCR补全）` : finalTitle, "本地风险库 + 裁剪 OCR 配料识别");
+    } catch (err) {
+        console.error(err);
+        statusTxt.innerText = "❌ 识别失败，请重新裁剪清晰的配料表区域";
+    } finally {
+        ocrInProgress = false;
+    }
+}
+
+function showOcrReview(rawText, title, source) {
+    const text = extractIngredientText(rawText);
+    pendingOcrTitle = title || "拍照识别报告";
+    pendingOcrSource = source || "本地风险库 + OCR 配料识别";
+    ocrTextInput.value = text;
+    ocrReviewArea.style.display = "block";
+
+    if (isUsableIngredientText(text)) {
+        statusTxt.innerText = "✅ 已识别配料，请核对后点击确认分析";
+        setProgress(92, "等待确认配料文本");
+    } else {
+        statusTxt.innerText = "⚠️ 识别内容不足，请重拍或在下方手动补全配料表";
+        setProgress(100, "等待修正配料文本");
+    }
+}
+
+function hideOcrReview() {
+    ocrReviewArea.style.display = "none";
+}
+
+function analyzeReviewedOcr() {
+    const text = extractIngredientText(ocrTextInput.value);
+    ocrTextInput.value = text;
+
+    if (!isUsableIngredientText(text)) {
+        statusTxt.innerText = "⚠️ 配料内容太少，无法可靠分析。请补全后再确认";
+        return;
+    }
+
+    if (currentLookupCode) {
+        currentIngredients = text;
+        upsertLocalCache(currentLookupCode, {
+            productName: pendingOcrTitle,
+            ingredients: text,
+            source: "ocr"
+        });
+    }
+
+    hideOcrAction();
+    hideOcrReview();
+    runAnalysis(text, pendingOcrTitle, pendingOcrSource);
 }
 
 function setProgress(percent, message) {
@@ -747,13 +932,18 @@ async function loadImageElement(file) {
 
 async function buildOcrImage(file) {
     const img = await loadImageElement(file);
-    const scale = Math.min(1, OCR_MAX_WIDTH / img.width);
+    return buildOcrImageFromImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+}
+
+async function buildOcrImageFromImage(img, crop) {
+    const safeCrop = clampCropRect(crop, img.width, img.height);
+    const scale = Math.min(1, OCR_MAX_WIDTH / safeCrop.width);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(img.width * scale));
-    canvas.height = Math.max(1, Math.round(img.height * scale));
+    canvas.width = Math.max(1, Math.round(safeCrop.width * scale));
+    canvas.height = Math.max(1, Math.round(safeCrop.height * scale));
 
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, canvas.width, canvas.height);
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
@@ -767,7 +957,7 @@ async function buildOcrImage(file) {
     ctx.putImageData(imageData, 0, 0);
 
     return new Promise((resolve) => {
-        canvas.toBlob((blob) => resolve(blob || file), "image/jpeg", OCR_JPEG_QUALITY);
+        canvas.toBlob((blob) => resolve(blob || canvas), "image/png");
     });
 }
 
@@ -775,37 +965,19 @@ ocrInput.onchange = async function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    statusTxt.innerHTML = "🌀 正在优化图片并准备识别...";
+    statusTxt.innerHTML = "🌀 正在读取图片...";
     reportBox.style.display = "none";
-    ocrInProgress = true;
+    hideOcrReview();
+    hideCropArea();
     setProgress(8, "读取配料表图片");
 
     try {
-        const worker = await getOcrWorker();
-        updateOcrProgress("🌀 正在压缩图片...");
-        setProgress(15, "优化图片清晰度");
-        const optimizedImage = await buildOcrImage(file);
-        updateOcrProgress("🌀 正在识别配料信息... 1%");
-        const { data: { text } } = await worker.recognize(optimizedImage);
-        const finalTitle = currentProductName || "拍照识别报告";
-        const cleanText = text.replace(/\s+/g, "");
-
-        if (currentLookupCode && cleanText.length >= 6) {
-            currentIngredients = text;
-            upsertLocalCache(currentLookupCode, {
-                productName: finalTitle,
-                ingredients: text,
-                source: "ocr"
-            });
-        }
-
-    hideOcrAction();
-    runAnalysis(text, currentLookupCode ? `${finalTitle}（OCR补全）` : finalTitle, "本地风险库 + OCR 配料识别");
+        hideOcrAction();
+        await showCropArea(file);
     } catch (err) {
         console.error(err);
-        statusTxt.innerText = "❌ 识别失败，请确保文字清晰";
+        statusTxt.innerText = "❌ 图片读取失败，请重新拍摄";
     } finally {
-        ocrInProgress = false;
         e.target.value = "";
     }
 };
@@ -832,6 +1004,8 @@ function toggleScanner() {
     setProgress(5, "启动相机");
     reportBox.style.display = "none";
     hideOcrAction();
+    hideOcrReview();
+    hideCropArea();
 
     html5QrCode = new Html5Qrcode("reader");
     const config = {
@@ -917,6 +1091,8 @@ function lookupProduct(code) {
 async function fetchCloudData(code) {
     statusTxt.innerText = `🌐 正在查询商品库: ${code}...`;
     reportBox.style.display = "none";
+    hideOcrReview();
+    hideCropArea();
     setProgress(30, "读取本地缓存并联网查询");
 
     try {
@@ -997,7 +1173,7 @@ function collectIngredientAnalysis(rawText) {
 
     for (let key in MASTER_DB) {
         const group = MASTER_DB[key];
-        [...group.keywords].sort((a, b) => getLongestAliasLength(b) - getLongestAliasLength(a)).forEach((word) => {
+        [...group.keywords].sort((a, b) => getLongestAliasLength(b) - getLongestAliasLength(a) || normalizeIngredientText(b).length - normalizeIngredientText(a).length).forEach((word) => {
             if (seen.has(word)) return;
             const matchedAlias = findMatchedAlias(cleanText, word);
             if (matchedAlias) {
@@ -1202,8 +1378,49 @@ function renderIngredientCards(items) {
     }).join("");
 }
 
-function normalizeIngredientText(rawText) {
+function fixOcrIngredientText(rawText) {
     return String(rawText || "")
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+        .replace(/[﹕︰]/g, "：")
+        .replace(/配\s*料/g, "配料")
+        .replace(/原\s*料/g, "原料")
+        .replace(/食\s*品\s*添\s*加\s*剂/g, "食品添加剂")
+        .replace(/营\s*养\s*成\s*分\s*表/g, "营养成分表")
+        .replace(/产\s*品\s*标\s*准\s*号/g, "产品标准号")
+        .replace(/庶糖/g, "蔗糖")
+        .replace(/柠檬酸纳/g, "柠檬酸钠")
+        .replace(/苯甲酸纳/g, "苯甲酸钠")
+        .replace(/糖精纳/g, "糖精钠")
+        .replace(/双乙酸纳/g, "双乙酸钠")
+        .replace(/亚硝酸纳/g, "亚硝酸钠")
+        .replace(/硝酸纳/g, "硝酸钠")
+        .replace(/山梨酸甲/g, "山梨酸钾")
+        .replace(/([A-Z])\s+(\d{3}[A-Z]?)/gi, "$1$2")
+        .replace(/E[\s-]*(\d{3})([A-Z]?)/gi, "E$1$2")
+        .replace(/Ｉ\+Ｇ|I\＋G/gi, "I+G");
+}
+
+function extractIngredientText(rawText) {
+    const text = fixOcrIngredientText(rawText).replace(/\r/g, "\n");
+    const labelMatch = text.match(/(配料表?|原料|食品添加剂)\s*[：:]/);
+    const start = labelMatch ? labelMatch.index : 0;
+    const endMarkers = ["营养成分表", "营养标签", "产品标准号", "执行标准", "保质期", "生产日期", "贮存条件", "净含量", "委托方", "生产商", "地址", "电话"];
+    const end = endMarkers.reduce((pos, marker) => {
+        const index = text.indexOf(marker, start + 4);
+        return index > -1 && index < pos ? index : pos;
+    }, text.length);
+
+    return text.slice(start, end).replace(/[ \t]+/g, "").replace(/\n+/g, "").trim();
+}
+
+function isUsableIngredientText(rawText) {
+    const text = extractIngredientText(rawText);
+    const cleanText = normalizeIngredientText(text);
+    return cleanText.length >= 10 && /[\u4e00-\u9fa5]/.test(text) && (/(配料|原料|食品添加剂)/.test(text) || /[、,，;；(（]/.test(text));
+}
+
+function normalizeIngredientText(rawText) {
+    return fixOcrIngredientText(rawText)
         .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
         .replace(/\s+/g, "")
         .replace(/（/g, "(")
@@ -1211,12 +1428,6 @@ function normalizeIngredientText(rawText) {
         .replace(/，/g, ",")
         .replace(/；/g, ";")
         .replace(/Ｉ\+Ｇ|I\＋G/gi, "I+G")
-        .replace(/苯甲酸纳/g, "苯甲酸钠")
-        .replace(/山梨酸甲/g, "山梨酸钾")
-        .replace(/糖精纳/g, "糖精钠")
-        .replace(/双乙酸纳/g, "双乙酸钠")
-        .replace(/亚硝酸纳/g, "亚硝酸钠")
-        .replace(/硝酸纳/g, "硝酸钠")
         .toUpperCase();
 }
 

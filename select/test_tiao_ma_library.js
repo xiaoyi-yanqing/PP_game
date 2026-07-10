@@ -28,6 +28,11 @@ this.INGREDIENT_ALIASES = INGREDIENT_ALIASES;
 this.INGREDIENT_DETAILS = INGREDIENT_DETAILS;
 this.normalizeIngredientText = normalizeIngredientText;
 this.parseScannedBarcode = parseScannedBarcode;
+this.getDefaultCropRect = getDefaultCropRect;
+this.clampCropRect = clampCropRect;
+this.fixOcrIngredientText = fixOcrIngredientText;
+this.extractIngredientText = extractIngredientText;
+this.isUsableIngredientText = isUsableIngredientText;
 this.collectIngredientAnalysis = collectIngredientAnalysis;
 this.getSafetySummary = getSafetySummary;
 this.getAudienceAdvice = getAudienceAdvice;
@@ -81,6 +86,9 @@ assert.strictEqual(sandbox.parseScannedBarcode("6901234567890"), "6901234567890"
 assert.strictEqual(sandbox.parseScannedBarcode("https://example.com/product/6901234567890"), "6901234567890");
 assert.strictEqual(sandbox.parseScannedBarcode("https://example.com/product"), "");
 
+assert.strictEqual(JSON.stringify(sandbox.getDefaultCropRect(1000, 800)), JSON.stringify({ x: 50, y: 120, width: 900, height: 480 }));
+assert.strictEqual(JSON.stringify(sandbox.clampCropRect({ x: -20, y: 760, width: 5, height: 100 }, 1000, 800)), JSON.stringify({ x: 0, y: 740, width: 80, height: 60 }));
+
 const risky = sandbox.collectIngredientAnalysis("配料：水、亚硝酸钠、柠檬黄、山梨酸钾");
 assert.strictEqual(risky.danger.length, 1);
 assert.strictEqual(risky.warning.length, 2);
@@ -88,6 +96,18 @@ assert(risky.score < 70, "high-risk ingredients should lower safety score");
 assert.strictEqual(sandbox.getSafetySummary(risky).level, "高风险");
 assert.strictEqual(sandbox.getSafetySummary(risky).tone, "danger");
 assert(risky.danger[0].injury.includes("可能"), "ingredient detail should describe possible harm");
+
+const extracted = sandbox.extractIngredientText("营养成分表\n配料：饮用水、柠檬酸纳、三氯庶糖、山梨酸甲\n产品标准号 GB/T 12345");
+assert(extracted.includes("配料：饮用水、柠檬酸钠、三氯蔗糖、山梨酸钾"), "OCR text should be corrected and trimmed to ingredients");
+assert(!extracted.includes("营养成分表"), "non-ingredient text before the ingredient label should be removed");
+assert(!extracted.includes("产品标准号"), "non-ingredient text after ingredients should be removed");
+assert.strictEqual(sandbox.isUsableIngredientText("饮用水"), false, "short OCR text should not be treated as a valid report");
+assert.strictEqual(sandbox.isUsableIngredientText(extracted), true, "extracted ingredients should be treated as usable");
+
+const ocrRisky = sandbox.collectIngredientAnalysis(extracted);
+assert(ocrRisky.warning.some((item) => item.word === "柠檬酸钠"), "OCR typo 柠檬酸纳 should match 柠檬酸钠");
+assert(ocrRisky.warning.some((item) => item.word === "三氯蔗糖"), "OCR typo 三氯庶糖 should match 三氯蔗糖");
+assert(ocrRisky.warning.some((item) => item.word === "山梨酸钾"), "OCR typo 山梨酸甲 should match 山梨酸钾");
 
 const audience = sandbox.getAudienceAdvice(risky);
 assert.deepStrictEqual(Array.from(audience, (item) => item.name), ["成人", "孕妇", "儿童"]);
@@ -113,7 +133,12 @@ assert(sandbox.getBarcodeFallbackMessage("missing_ingredients", "示例商品").
 
 assert(html.includes('id="progressArea"'), "analysis progress bar missing");
 assert(html.includes('id="audienceArea"'), "audience analysis area missing");
+assert(html.includes('id="cropArea"'), "manual crop area missing");
+assert(html.includes("确认裁剪并识别"), "crop confirmation action missing");
+assert(html.includes('id="ocrReviewArea"'), "OCR review area missing");
 assert(html.includes("audience-ingredient"), "audience ingredient details missing");
+assert(html.includes("const OCR_MAX_WIDTH = 3600"), "OCR max width should keep more small-text detail");
+assert(html.includes('canvas.toBlob((blob) => resolve(blob || canvas), "image/png")'), "OCR image should use lossless PNG");
 assert(html.includes("const SCAN_TIMEOUT_MS = 10000"), "10-second scan timeout missing");
 assert(html.includes("切换拍配料表"), "scan fallback action missing");
 assert(html.includes("html5-qrcode@2.3.8"), "scanner dependency should be pinned");
