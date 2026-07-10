@@ -31,11 +31,30 @@
         .ingredient-name { font-weight: 700; font-size: 14px; color: #222; }
         .ingredient-meta { font-size: 12px; color: #666; }
         .ingredient-desc { font-size: 13px; color: #333; margin-top: 4px; }
+        .ingredient-injury { font-size: 13px; color: #b42318; margin-top: 6px; font-weight: 600; }
         .ingredient-advice { font-size: 12px; color: #666; margin-top: 6px; }
-        .score-box { display: flex; align-items: center; justify-content: space-between; gap: 14px; background: #f7fbff; border: 1px solid #d6e8ff; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-        .score-num { font-size: 34px; font-weight: 800; color: var(--info); line-height: 1; }
+        .score-box { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 2px solid #d6e8ff; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+        .score-box.danger { background: #fff1f0; border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,77,79,0.12); }
+        .score-box.warning { background: #fffbe6; border-color: var(--warning); }
+        .score-box.safe { background: #f6ffed; border-color: var(--safe); }
+        .score-num { font-size: 40px; font-weight: 800; color: var(--info); line-height: 1; }
+        .score-box.danger .score-num { color: var(--danger); }
+        .score-box.warning .score-num { color: #ad6800; }
+        .score-box.safe .score-num { color: var(--safe); }
         .score-meta { flex: 1; font-size: 13px; color: #555; }
-        .score-level { font-weight: 700; color: #222; margin-bottom: 3px; }
+        .score-level { font-weight: 800; color: #222; margin-bottom: 3px; font-size: 18px; }
+        .analysis-source { font-size: 12px; color: #777; margin: -4px 0 10px; }
+        .audience-area { border: 1px solid #e7e7e7; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+        .audience-row { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .audience-row:last-child { border-bottom: 0; }
+        .audience-head { display: flex; justify-content: space-between; gap: 10px; font-weight: 700; margin-bottom: 3px; }
+        .audience-danger { color: #b42318; }
+        .audience-warning { color: #ad6800; }
+        .audience-safe { color: #237804; }
+        .progress-area { display: none; margin: 8px 0 12px; }
+        .progress-track { height: 9px; overflow: hidden; background: #e8e8e8; border-radius: 5px; }
+        .progress-bar { width: 0; height: 100%; background: var(--info); transition: width .2s ease; }
+        .progress-text { margin-top: 5px; font-size: 12px; text-align: center; color: #666; }
         .advice { font-size: 12px; color: #777; margin-top: 8px; font-style: italic; border-top: 1px dashed #ddd; padding-top: 5px; }
         #reader { width: 100%; display: none; margin-bottom: 10px; border-radius: 12px; overflow: hidden; }
     </style>
@@ -44,36 +63,32 @@
 
 <div class="card">
     <h2 style="margin-top:0">🔬 食品成分全扫描</h2>
-    <p style="font-size:12px; color:#999;">依据标准：GB 2760-2024 (2025.02 实施版)</p>
+    <p style="font-size:12px; color:#777;">依据标准：<a href="https://www.nhc.gov.cn/sps/c100088/202403/bda120e678df4a49a8beb90852559d7c.shtml" target="_blank" rel="noopener">GB 2760-2024</a>；E 编号用于辅助识别</p>
     
-    <label class="btn-main">
-        📷 拍摄配料表图片分析
-        <input type="file" id="ocrInput" accept="image/*" capture="environment" style="display: none;">
-    </label>
-    
-    <button class="btn-main btn-sub" onclick="toggleScanner()">
+    <button class="btn-main" onclick="toggleScanner()">
         🔍 扫描商品条码/二维码
     </button>
     <div id="reader"></div>
 
-    <label class="btn-main btn-sub">
-        📸 拍条码照片识别
-        <input type="file" id="barcodeImageInput" accept="image/*" capture="environment" style="display: none;">
-    </label>
-
-    <button class="btn-main btn-sub" onclick="cloudScanPrompt()" style="margin-top: 10px;">
+    <button class="btn-main btn-sub" onclick="cloudScanPrompt()">
         🏷️ 手动输入条形码
     </button>
+
+    <label class="btn-main btn-sub">
+        📷 手动拍配料表
+        <input type="file" id="ocrInput" accept="image/*" capture="environment" style="display: none;">
+    </label>
     
     <div id="status">准备就绪</div>
+    <div id="progressArea" class="progress-area" aria-live="polite">
+        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+        <div id="progressText" class="progress-text"></div>
+    </div>
     <div id="cacheMeta"></div>
 
     <div id="actionArea">
         <button class="btn-main btn-sub" type="button" onclick="triggerOcrCapture()">
             📷 继续拍配料表写入缓存
-        </button>
-        <button class="btn-main btn-sub" type="button" onclick="exportLocalCache()">
-            💾 导出本地缓存
         </button>
     </div>
 </div>
@@ -81,17 +96,20 @@
 <div id="reportBox" class="card" style="display:none;">
     <h3 id="reportTitle" style="margin-top:0">检测报告</h3>
     <div id="scoreArea" class="score-box"></div>
+    <div id="analysisSource" class="analysis-source"></div>
+    <div class="section-title">人群适用提醒</div>
+    <div id="audienceArea" class="audience-area"></div>
     
     <div id="dangerArea" class="report-section danger-bg">
         <div class="section-title">🔴 高风险/建议避开</div>
         <div id="dangerList"></div>
-        <div class="advice">提示：含致癌、生殖毒性风险或心血管重度负担成分。</div>
+        <div class="advice">提示：风险受食品类别、添加量和食用频率影响，不能仅凭名称判断是否超标。</div>
     </div>
 
     <div id="warningArea" class="report-section warning-bg">
         <div class="section-title">🟡 需注意的添加剂</div>
         <div id="warningList"></div>
-        <div class="advice">提示：合法但建议限制摄入，对特定人群（如痛风、儿童）有影响。</div>
+        <div class="advice">提示：合法限量使用不等于有害；以下内容用于识别敏感人群和高频摄入风险。</div>
     </div>
     
     <div id="safeArea" class="report-section" style="background: #f6ffed; border-left: 5px solid var(--safe);">
@@ -107,11 +125,17 @@ const MASTER_DB = {
         label: "极高风险",
         color: "danger",
         keywords: [
-            "反式脂肪", "代可可脂", "氢化植物油", "植脂末", "亚硝酸钠", "亚硝酸钾", "硝酸钠", "硝酸钾",
-            "亚硝酸盐", "硝酸盐", "脱氢乙酸钠", "脱氢乙酸", "二氧化钛", "溴酸钾", "TBHQ", "BHA", "BHT", "偶氮二甲酰胺",
+            "反式脂肪", "代可可脂", "氢化植物油", "植脂末", "脱氢乙酸钠", "脱氢乙酸", "二氧化钛", "溴酸钾",
+            "TBHQ", "BHA", "BHT", "偶氮二甲酰胺",
             "过氧化苯甲酰", "赤藓红", "苋菜红", "新红"
         ],
         desc: "重点：脱氢乙酸钠于2025年起在糕点面包中禁用。"
+    },
+    "color_fixatives": {
+        label: "发色剂",
+        color: "danger",
+        keywords: ["亚硝酸钠", "亚硝酸钾", "硝酸钠", "硝酸钾", "亚硝酸盐", "硝酸盐"],
+        desc: "加工肉常见发色/抑菌体系，应结合食品类别、限量和食用频率判断。"
     },
     "preservatives": {
         label: "防腐剂",
@@ -119,6 +143,7 @@ const MASTER_DB = {
         keywords: [
             "苯甲酸", "苯甲酸钠", "山梨酸", "山梨酸钾", "丙酸", "丙酸钙", "纳他霉素", "二氧化硫",
             "焦亚硫酸钠", "焦亚硫酸钾", "低亚硫酸钠", "低亚硫酸钾", "亚硫酸盐",
+            "亚硫酸钠", "亚硫酸氢钠", "亚硫酸钙", "亚硫酸氢钾",
             "对羟基苯甲酸酯", "对羟基苯甲酸甲酯", "对羟基苯甲酸乙酯", "对羟基苯甲酸丙酯",
             "对羟基苯甲酸丁酯", "山梨酸钙", "丙酸钠", "乙酸钠", "双乙酸钠", "乳酸链球菌素"
         ],
@@ -129,7 +154,8 @@ const MASTER_DB = {
         color: "warning",
         keywords: [
             "柠檬黄", "日落黄", "诱惑红", "亮蓝", "胭脂红", "靛蓝", "姜黄素",
-            "焦糖色", "胭脂虫红", "胡萝卜素", "叶黄素", "栀子黄", "红曲红", "辣椒红", "甜菜红"
+            "焦糖色", "胭脂虫红", "胡萝卜素", "叶黄素", "栀子黄", "红曲红", "辣椒红", "甜菜红",
+            "喹啉黄", "专利蓝V", "绿S", "亮黑BN"
         ],
         desc: "可能引起儿童注意力不集中或诱发哮喘。"
     },
@@ -139,7 +165,7 @@ const MASTER_DB = {
         keywords: [
             "阿斯巴甜", "安赛蜜", "乙酰磺胺酸钾", "三氯蔗糖", "糖精钠", "甜蜜素", "纽甜",
             "阿力甜", "索马甜", "甜菊糖苷", "赤藓糖醇", "木糖醇", "麦芽糖醇", "山梨糖醇",
-            "甘露糖醇", "乳糖醇", "异麦芽酮糖醇"
+            "甘露糖醇", "乳糖醇", "异麦芽酮糖醇", "爱德万甜", "阿斯巴甜-安赛蜜盐", "新橙皮苷二氢查耳酮"
         ],
         desc: "阿斯巴甜含苯丙氨酸；过量代糖可能影响肠道菌群。"
     },
@@ -159,7 +185,7 @@ const MASTER_DB = {
             "卡拉胶", "羧甲基纤维素钠", "明胶", "果胶", "黄原胶", "单双甘油脂肪酸酯",
             "磷脂", "聚山梨醇酯80", "聚甘油脂肪酸酯", "蔗糖脂肪酸酯", "硬脂酰乳酸钠",
             "硬脂酰乳酸钙", "酪蛋白酸钠", "丙二醇脂肪酸酯", "山梨醇酐单硬脂酸酯",
-            "聚甘油蓖麻醇酸酯"
+            "聚甘油蓖麻醇酸酯", "铵磷脂", "双乙酰酒石酸单双甘油酯"
         ],
         desc: "部分研究显示卡拉胶等可能诱发轻微肠道炎症。"
     },
@@ -167,7 +193,8 @@ const MASTER_DB = {
         label: "抗氧化剂",
         color: "warning",
         keywords: [
-            "抗坏血酸", "抗坏血酸钠", "D-异抗坏血酸钠", "维生素E", "没食子酸丙酯", "迷迭香提取物", "茶多酚"
+            "抗坏血酸", "抗坏血酸钠", "抗坏血酸钙", "抗坏血酸棕榈酸酯", "异抗坏血酸", "D-异抗坏血酸钠",
+            "维生素E", "没食子酸丙酯", "迷迭香提取物", "茶多酚"
         ],
         desc: "常用于延缓油脂氧化，命中时结合油炸、高脂食品频率判断。"
     },
@@ -176,7 +203,8 @@ const MASTER_DB = {
         color: "warning",
         keywords: [
             "柠檬酸", "柠檬酸钠", "乳酸", "苹果酸", "酒石酸", "磷酸", "碳酸氢钠", "碳酸钠",
-            "碳酸钾", "氢氧化钠", "葡萄糖酸-δ-内酯"
+            "碳酸钾", "氢氧化钠", "葡萄糖酸-δ-内酯", "乙酸", "乙酸钾", "碳酸钙", "富马酸",
+            "苹果酸钠", "苹果酸钾", "苹果酸钙"
         ],
         desc: "多用于调酸、膨松或稳定口感，频繁命中说明配方加工度较高。"
     },
@@ -226,6 +254,10 @@ const INGREDIENT_ALIASES = {
     "低亚硫酸钠": ["低亚硫酸钠", "低亚硫酸纳"],
     "低亚硫酸钾": ["低亚硫酸钾"],
     "亚硫酸盐": ["亚硫酸盐", "亚硫酸", "E221", "E222", "E226", "E227", "E228"],
+    "亚硫酸钠": ["亚硫酸钠", "亚硫酸纳", "E221"],
+    "亚硫酸氢钠": ["亚硫酸氢钠", "酸式亚硫酸钠", "E222"],
+    "亚硫酸钙": ["亚硫酸钙", "E226"],
+    "亚硫酸氢钾": ["亚硫酸氢钾", "E228"],
     "对羟基苯甲酸酯": ["对羟基苯甲酸酯", "对羟基苯甲酸", "尼泊金酯"],
     "对羟基苯甲酸甲酯": ["对羟基苯甲酸甲酯", "尼泊金甲酯", "羟苯甲酯", "E218"],
     "对羟基苯甲酸乙酯": ["对羟基苯甲酸乙酯", "尼泊金乙酯", "羟苯乙酯", "E214"],
@@ -251,6 +283,10 @@ const INGREDIENT_ALIASES = {
     "红曲红": ["红曲红", "红曲色素"],
     "辣椒红": ["辣椒红", "辣椒红素", "E160C"],
     "甜菜红": ["甜菜红", "甜菜根红", "E162"],
+    "喹啉黄": ["喹啉黄", "E104"],
+    "专利蓝V": ["专利蓝V", "专利蓝5", "E131"],
+    "绿S": ["绿S", "E142"],
+    "亮黑BN": ["亮黑BN", "黑亮BN", "E151"],
     "阿斯巴甜": ["阿斯巴甜", "E951"],
     "安赛蜜": ["安赛蜜", "E950"],
     "乙酰磺胺酸钾": ["乙酰磺胺酸钾", "安赛蜜K", "乙酰磺胺酸钾盐"],
@@ -268,6 +304,9 @@ const INGREDIENT_ALIASES = {
     "甘露糖醇": ["甘露糖醇", "甘露醇", "E421"],
     "乳糖醇": ["乳糖醇", "E966"],
     "异麦芽酮糖醇": ["异麦芽酮糖醇", "异麦芽酮糖醇酯", "异麦芽糖醇", "E953"],
+    "爱德万甜": ["爱德万甜", "E969"],
+    "阿斯巴甜-安赛蜜盐": ["阿斯巴甜-安赛蜜盐", "阿斯巴甜乙酰磺胺酸盐", "E962"],
+    "新橙皮苷二氢查耳酮": ["新橙皮苷二氢查耳酮", "新橙皮苷二氢查尔酮", "E959"],
     "谷氨酸钠": ["谷氨酸钠", "谷氨酸", "味精", "E621"],
     "呈味核苷酸二钠": ["呈味核苷酸二钠", "核苷酸二钠", "I+G", "I＋G"],
     "5'-呈味核苷酸二钠": ["5'-呈味核苷酸二钠", "5-呈味核苷酸二钠"],
@@ -293,8 +332,13 @@ const INGREDIENT_ALIASES = {
     "丙二醇脂肪酸酯": ["丙二醇脂肪酸酯", "E477"],
     "山梨醇酐单硬脂酸酯": ["山梨醇酐单硬脂酸酯", "司盘60", "E491"],
     "聚甘油蓖麻醇酸酯": ["聚甘油蓖麻醇酸酯", "PGPR", "E476"],
+    "铵磷脂": ["铵磷脂", "E442"],
+    "双乙酰酒石酸单双甘油酯": ["双乙酰酒石酸单双甘油酯", "DATEM", "E472E"],
     "抗坏血酸": ["抗坏血酸", "维生素C", "E300"],
     "抗坏血酸钠": ["抗坏血酸钠", "维生素C钠", "E301"],
+    "抗坏血酸钙": ["抗坏血酸钙", "E302"],
+    "抗坏血酸棕榈酸酯": ["抗坏血酸棕榈酸酯", "抗坏血酸棕榈酸盐", "E304"],
+    "异抗坏血酸": ["异抗坏血酸", "D-异抗坏血酸", "E315"],
     "D-异抗坏血酸钠": ["D-异抗坏血酸钠", "异抗坏血酸钠", "异VC钠", "E316"],
     "维生素E": ["维生素E", "生育酚", "E306", "E307", "E308", "E309"],
     "没食子酸丙酯": ["没食子酸丙酯", "PG", "E310"],
@@ -311,6 +355,13 @@ const INGREDIENT_ALIASES = {
     "碳酸钾": ["碳酸钾", "E501"],
     "氢氧化钠": ["氢氧化钠", "E524"],
     "葡萄糖酸-δ-内酯": ["葡萄糖酸-δ-内酯", "葡萄糖酸内酯", "GDL", "E575"],
+    "乙酸": ["乙酸", "醋酸", "E260"],
+    "乙酸钾": ["乙酸钾", "醋酸钾", "E261"],
+    "碳酸钙": ["碳酸钙", "E170"],
+    "富马酸": ["富马酸", "延胡索酸", "E297"],
+    "苹果酸钠": ["苹果酸钠", "E350"],
+    "苹果酸钾": ["苹果酸钾", "E351"],
+    "苹果酸钙": ["苹果酸钙", "E352"],
     "三聚磷酸钠": ["三聚磷酸钠", "E451"],
     "六偏磷酸钠": ["六偏磷酸钠", "E452"],
     "焦磷酸钠": ["焦磷酸钠", "焦磷酸二氢二钠", "E450"],
@@ -452,6 +503,7 @@ const CLOUD_SOURCE_CONFIG = {
 const OCR_LANGUAGE = "chi_sim";
 const OCR_MAX_WIDTH = 1600;
 const OCR_JPEG_QUALITY = 0.82;
+const FETCH_TIMEOUT_MS = 4500;
 const BARCODE_FORMATS = window.Html5QrcodeSupportedFormats ? [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.EAN_13,
@@ -466,7 +518,9 @@ const cacheMeta = document.getElementById("cacheMeta");
 const actionArea = document.getElementById("actionArea");
 const reportBox = document.getElementById("reportBox");
 const ocrInput = document.getElementById("ocrInput");
-const barcodeImageInput = document.getElementById("barcodeImageInput");
+const progressArea = document.getElementById("progressArea");
+const progressBar = document.getElementById("progressBar");
+const progressText = document.getElementById("progressText");
 const staticCache = (window.STATIC_PRODUCT_CACHE && window.STATIC_PRODUCT_CACHE.products) || {};
 
 let html5QrCode;
@@ -533,27 +587,15 @@ function hideOcrAction() {
     actionArea.style.display = "none";
 }
 
-function triggerOcrCapture() {
-    ocrInput.click();
+function setProgress(percent, message) {
+    const value = Math.max(0, Math.min(100, Math.round(percent)));
+    progressArea.style.display = "block";
+    progressBar.style.width = `${value}%`;
+    progressText.innerText = message || `分析中 ${value}%`;
 }
 
-function exportLocalCache() {
-    const localCache = loadLocalCache();
-    const blob = new Blob(
-        [
-            "window.STATIC_PRODUCT_CACHE = ",
-            JSON.stringify({ products: localCache }, null, 2),
-            ";\n"
-        ],
-        { type: "application/javascript;charset=utf-8" }
-    );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "product_cache_export.js";
-    link.click();
-    URL.revokeObjectURL(url);
-    renderCacheMeta("本地缓存已导出，可覆盖 product_cache.js 持久保存");
+function triggerOcrCapture() {
+    ocrInput.click();
 }
 
 function preparePendingProduct(code, productName) {
@@ -568,20 +610,30 @@ function consumeCachedEntry(entry, code) {
     currentIngredients = entry.ingredients || "";
     statusTxt.innerText = `✅ 已命中缓存库：${currentProductName}`;
     hideOcrAction();
-    runAnalysis(currentIngredients, `${currentProductName}（缓存）`);
+    runAnalysis(currentIngredients, `${currentProductName}（缓存）`, "本地风险库 + 本地商品缓存");
+}
+
+async function fetchJsonWithTimeout(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 async function queryOpenFoodFactsProduct(code) {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
-    const data = await res.json();
+    const data = await fetchJsonWithTimeout(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
     data.source = "openfoodfacts-product";
     return data;
 }
 
 async function queryOpenFoodFactsSearch(code) {
     const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(code)}&search_simple=1&action=process&json=1&page_size=5`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchJsonWithTimeout(url);
     const products = Array.isArray(data.products) ? data.products : [];
 
     const matchedProduct = products.find((item) => {
@@ -607,8 +659,7 @@ async function queryTanshuBarcode(code) {
     }
 
     const url = `https://api2.tanshuapi.com/api/barcode/v1/index?key=${encodeURIComponent(key)}&barcode=${encodeURIComponent(code)}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await fetchJsonWithTimeout(url);
     const payload = data.data || {};
 
     return {
@@ -645,6 +696,7 @@ async function getOcrWorker() {
                     if (!ocrInProgress || message.status !== "recognizing text") return;
                     const progress = Math.max(1, Math.round((message.progress || 0) * 100));
                     updateOcrProgress(`🌀 正在识别配料信息... ${progress}%`);
+                    setProgress(20 + progress * 0.7, `识别配料表 ${progress}%`);
                 }
             });
             await worker.loadLanguage(OCR_LANGUAGE);
@@ -712,10 +764,12 @@ ocrInput.onchange = async function(e) {
     statusTxt.innerHTML = "🌀 正在优化图片并准备识别...";
     reportBox.style.display = "none";
     ocrInProgress = true;
+    setProgress(8, "读取配料表图片");
 
     try {
         const worker = await getOcrWorker();
         updateOcrProgress("🌀 正在压缩图片...");
+        setProgress(15, "优化图片清晰度");
         const optimizedImage = await buildOcrImage(file);
         updateOcrProgress("🌀 正在识别配料信息... 1%");
         const { data: { text } } = await worker.recognize(optimizedImage);
@@ -732,45 +786,12 @@ ocrInput.onchange = async function(e) {
         }
 
     hideOcrAction();
-    runAnalysis(text, currentLookupCode ? `${finalTitle}（OCR补全）` : finalTitle);
+    runAnalysis(text, currentLookupCode ? `${finalTitle}（OCR补全）` : finalTitle, "本地风险库 + OCR 配料识别");
     } catch (err) {
         console.error(err);
         statusTxt.innerText = "❌ 识别失败，请确保文字清晰";
     } finally {
         ocrInProgress = false;
-        e.target.value = "";
-    }
-};
-
-barcodeImageInput.onchange = async function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    try {
-        if (!window.Html5Qrcode) {
-            showOcrAction("❌ 条码识别组件未加载，请手动输入条码或拍配料表");
-            return;
-        }
-
-        if (html5QrCode) {
-            await html5QrCode.stop().catch((err) => console.error(err));
-            html5QrCode = null;
-        }
-
-        reportBox.style.display = "none";
-        hideOcrAction();
-        statusTxt.innerText = "🌀 正在识别条码照片...";
-        const readerDiv = document.getElementById("reader");
-        readerDiv.style.display = "block";
-        const fileScanner = new Html5Qrcode("reader");
-        const decodedText = await fileScanner.scanFile(file, true);
-        await fileScanner.clear().catch((err) => console.error(err));
-        readerDiv.style.display = "none";
-        onScanSuccess(decodedText);
-    } catch (err) {
-        console.error(err);
-        showOcrAction(getBarcodeFallbackMessage("scan_failed"));
-    } finally {
         e.target.value = "";
     }
 };
@@ -794,6 +815,7 @@ function toggleScanner() {
 
     readerDiv.style.display = "block";
     statusTxt.innerText = "📷 正在启动相机...";
+    setProgress(5, "启动相机");
     reportBox.style.display = "none";
     hideOcrAction();
 
@@ -811,9 +833,10 @@ function toggleScanner() {
     html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
         .then(() => {
             statusTxt.innerText = "📷 请将条形码横向对准取景框，保持 10-20 厘米距离";
+            setProgress(15, "等待识别条码");
         })
         .catch((err) => {
-            showOcrAction("❌ 无法调用摄像头，请拍条码照片、手动输入条码，或直接拍配料表分析");
+            showOcrAction("❌ 无法调用摄像头，请手动输入条码，或直接拍配料表分析");
             console.error(err);
         });
 }
@@ -833,6 +856,7 @@ function onScanSuccess(decodedText) {
     stopScanner();
     const code = normalizeBarcode(decodedText);
     statusTxt.innerText = `✅ 扫码成功: ${code}，正在查询...`;
+    setProgress(25, "条码识别成功，查询商品");
     lookupProduct(code);
 }
 
@@ -862,13 +886,16 @@ function lookupProduct(code) {
 async function fetchCloudData(code) {
     statusTxt.innerText = `🌐 正在查询商品库: ${code}...`;
     reportBox.style.display = "none";
+    setProgress(30, "读取本地缓存并联网查询");
 
     try {
         const cacheEntry = getCacheEntry(code);
         let data = await queryOpenFoodFactsProduct(code);
+        setProgress(55, "已完成主商品库查询");
 
         if (data.status !== 1) {
             statusTxt.innerText = `🌐 主接口未命中，正在补查 Open Food Facts 搜索库: ${code}...`;
+            setProgress(65, "主库未命中，正在补查");
             data = await queryOpenFoodFactsSearch(code);
         }
 
@@ -894,7 +921,7 @@ async function fetchCloudData(code) {
                     source: data.source || "cloud"
                 });
                 hideOcrAction();
-                runAnalysis(ingredients, productName);
+                runAnalysis(ingredients, productName, "本地风险库 + Open Food Facts 联网数据");
             } else if (cacheEntry && cacheEntry.ingredients) {
                 statusTxt.innerText = `⚠️ 联网已找到“${productName}”，但云端缺配料表，已回退本地缓存`;
                 hideOcrAction();
@@ -903,6 +930,7 @@ async function fetchCloudData(code) {
                     productName: cacheEntry.productName || productName
                 }, code);
             } else {
+                setProgress(100, "联网完成，等待拍摄配料表");
                 showOcrAction(getBarcodeFallbackMessage("missing_ingredients", productName));
             }
         } else {
@@ -912,6 +940,7 @@ async function fetchCloudData(code) {
                 consumeCachedEntry(cacheEntry, code);
             } else {
                 preparePendingProduct(code, `商品 (${code})`);
+                setProgress(100, "商品库未收录，等待拍摄配料表");
                 showOcrAction(getBarcodeFallbackMessage("not_found"));
             }
         }
@@ -923,6 +952,7 @@ async function fetchCloudData(code) {
             hideOcrAction();
             consumeCachedEntry(cacheEntry, code);
         } else {
+            setProgress(100, "联网超时或失败，等待拍摄配料表");
             showOcrAction(getBarcodeFallbackMessage("offline"));
         }
     }
@@ -960,12 +990,37 @@ function collectIngredientAnalysis(rawText) {
 
 function getSafetySummary(results) {
     if (results.danger.length > 0 || results.score < 70) {
-        return { level: "高风险", text: "命中高风险或多项需注意成分，建议减少或避开。" };
+        return { level: "高风险", tone: "danger", text: "命中高风险或多项需注意成分，建议减少或避开。" };
     }
     if (results.warning.length > 0 || results.score < 90) {
-        return { level: "需谨慎", text: "有添加剂提醒，偶尔食用可以，长期高频不建议。" };
+        return { level: "需谨慎", tone: "warning", text: "有添加剂提醒，偶尔食用可以，长期高频不建议。" };
     }
-    return { level: "较安全", text: "本地风险库未发现明显敏感成分，仍需结合总糖、总钠和食用频率。" };
+    return { level: "较安全", tone: "safe", text: "本地风险库未发现明显敏感成分，仍需结合总糖、总钠和食用频率。" };
+}
+
+function getAudienceAdvice(results) {
+    const highRisk = results.danger.length > 0;
+    const needsCare = highRisk || results.warning.length > 0;
+    return [
+        {
+            name: "成人",
+            level: highRisk ? "建议少吃或避开" : needsCare ? "可偶尔食用" : "一般可食用",
+            tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
+            harm: highRisk ? "高频摄入可能增加心血管、代谢或胃肠负担。" : "需结合总糖、总钠、过敏史和食用频率判断。"
+        },
+        {
+            name: "孕妇",
+            level: highRisk ? "不建议食用" : needsCare ? "建议谨慎" : "一般可食用",
+            tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
+            harm: "孕期对亚硝酸盐、酒精、过敏原和高加工食品应更谨慎，不能替代医生建议。"
+        },
+        {
+            name: "儿童",
+            level: highRisk ? "不建议食用" : needsCare ? "建议少量" : "一般可食用",
+            tone: highRisk ? "danger" : needsCare ? "warning" : "safe",
+            harm: "儿童处于生长发育期，应减少色素、甜味剂、加工肉和高糖高钠食品的高频摄入。"
+        }
+    ];
 }
 
 function getBarcodeFallbackMessage(reason, productName) {
@@ -975,26 +1030,32 @@ function getBarcodeFallbackMessage(reason, productName) {
     if (reason === "offline") {
         return "❌ 联网查询失败，请直接拍配料表继续分析并写入本地缓存";
     }
-    if (reason === "scan_failed") {
-        return "❌ 条码照片未识别成功，请重新拍条码、手动输入，或直接拍配料表";
-    }
     return "❓ 商品库暂未收录该条码，请拍配料表继续分析并写入本地缓存";
 }
 
-function runAnalysis(rawText, title) {
+function runAnalysis(rawText, title, source = "本地风险库") {
     const results = collectIngredientAnalysis(rawText);
     const summary = getSafetySummary(results);
     document.getElementById("dangerList").innerHTML = "";
     document.getElementById("warningList").innerHTML = "";
 
     document.getElementById("reportTitle").innerText = title;
-    document.getElementById("scoreArea").innerHTML = `
+    const scoreArea = document.getElementById("scoreArea");
+    scoreArea.className = `score-box ${summary.tone}`;
+    scoreArea.innerHTML = `
         <div class="score-num">${results.score}</div>
         <div class="score-meta">
             <div class="score-level">安全系数：${summary.level}</div>
             <div>${summary.text}</div>
         </div>
     `;
+    document.getElementById("analysisSource").innerText = `分析来源：${source}`;
+    document.getElementById("audienceArea").innerHTML = getAudienceAdvice(results).map((item) => `
+        <div class="audience-row">
+            <div class="audience-head"><span>${item.name}</span><span class="audience-${item.tone}">${item.level}</span></div>
+            <div>${item.harm}</div>
+        </div>
+    `).join("");
     reportBox.style.display = "block";
 
     let hasIssues = false;
@@ -1022,6 +1083,7 @@ function runAnalysis(rawText, title) {
         statusTxt.innerHTML = "✅ 分析完成，未发现库中定义的敏感成分。";
         document.getElementById("safeArea").style.display = "block";
     }
+    setProgress(100, "分析完成");
 }
 
 function getLongestAliasLength(word) {
@@ -1046,9 +1108,26 @@ function getIngredientDetail(word, group, matchedAlias) {
         matchedAlias,
         category: group.label,
         hazard: detail.hazard || group.desc,
+        injury: detail.injury || getIngredientInjury(group.label),
         advice: detail.advice || "建议结合整体配料表复杂度、食用频率和个人体质综合判断。",
         level: group.label
     };
+}
+
+function getIngredientInjury(category) {
+    const injuries = {
+        "极高风险": "长期或高频摄入可能增加心血管、代谢或相关慢性健康风险。",
+        "发色剂": "加工肉高频摄入可能增加亚硝酸盐及其相关反应产物的暴露风险。",
+        "防腐剂": "过量摄入或敏感个体可能出现胃肠不适、喘息或过敏样反应。",
+        "合成色素": "敏感人群可能出现皮疹、喘息等过敏样反应，儿童应减少高频摄入。",
+        "甜味剂/代糖": "过量可能引起腹胀、腹泻或胃肠不适，特殊代谢疾病人群需避开特定成分。",
+        "增鲜/增香剂": "高钠、高尿酸或痛风人群可能增加代谢负担。",
+        "增稠/乳化剂": "大量或不耐受时可能引起腹胀、腹泻等胃肠不适。",
+        "抗氧化剂": "合规用量通常风险较低，长期叠加高摄入可能增加代谢负担。",
+        "酸度调节剂": "高频摄入酸性食品可能刺激胃部并增加牙釉质侵蚀风险。",
+        "磷酸盐类": "长期高磷摄入可能增加肾脏和骨代谢负担。"
+    };
+    return injuries[category] || "过量或高频摄入可能带来胃肠不适或额外代谢负担。";
 }
 
 function renderIngredientCards(items) {
@@ -1063,6 +1142,7 @@ function renderIngredientCards(items) {
                     <div class="ingredient-meta">${item.level} · ${hitText}</div>
                 </div>
                 <div class="ingredient-desc">${item.hazard}</div>
+                <div class="ingredient-injury">可能伤害：${item.injury}</div>
                 <div class="ingredient-advice">建议：${item.advice}</div>
             </div>
         `;
