@@ -27,6 +27,7 @@ this.MASTER_DB = MASTER_DB;
 this.INGREDIENT_ALIASES = INGREDIENT_ALIASES;
 this.INGREDIENT_DETAILS = INGREDIENT_DETAILS;
 this.normalizeIngredientText = normalizeIngredientText;
+this.parseScannedBarcode = parseScannedBarcode;
 this.collectIngredientAnalysis = collectIngredientAnalysis;
 this.getSafetySummary = getSafetySummary;
 this.getAudienceAdvice = getAudienceAdvice;
@@ -76,6 +77,9 @@ function covered(name, aliases = []) {
 });
 
 assert.strictEqual(sandbox.normalizeIngredientText("Ｅ３３０，I＋G").includes("E330,I+G"), true);
+assert.strictEqual(sandbox.parseScannedBarcode("6901234567890"), "6901234567890");
+assert.strictEqual(sandbox.parseScannedBarcode("https://example.com/product/6901234567890"), "6901234567890");
+assert.strictEqual(sandbox.parseScannedBarcode("https://example.com/product"), "");
 
 const risky = sandbox.collectIngredientAnalysis("配料：水、亚硝酸钠、柠檬黄、山梨酸钾");
 assert.strictEqual(risky.danger.length, 1);
@@ -95,10 +99,18 @@ assert.strictEqual(clean.score, 96);
 assert.strictEqual(sandbox.getSafetySummary(clean).level, "较安全");
 
 assert(sandbox.getBarcodeFallbackMessage("offline").includes("拍配料表"));
+assert(sandbox.getBarcodeFallbackMessage("scan_timeout").includes("10 秒"));
+assert(sandbox.getBarcodeFallbackMessage("invalid_qr").includes("不是商品条码"));
 assert(sandbox.getBarcodeFallbackMessage("missing_ingredients", "示例商品").includes("示例商品"));
 
 assert(html.includes('id="progressArea"'), "analysis progress bar missing");
 assert(html.includes('id="audienceArea"'), "audience analysis area missing");
+assert(html.includes("const SCAN_TIMEOUT_MS = 10000"), "10-second scan timeout missing");
+assert(html.includes("切换拍配料表"), "scan fallback action missing");
+assert(html.includes("html5-qrcode@2.3.8"), "scanner dependency should be pinned");
+assert(html.includes("cdn.jsdelivr.net/npm/html5-qrcode@2.3.8"), "scanner CDN fallback missing");
+const tanshuKeyMatch = html.match(/tanshuKey\s*:\s*"([^"]+)"/);
+assert(tanshuKeyMatch && tanshuKeyMatch[1].length >= 8, "tanshu API key should be configured");
 assert(!html.includes('id="barcodeImageInput"'), "extra barcode photo entry should be removed");
 assert(!html.includes("exportLocalCache"), "cache export entry should be removed");
 assert.strictEqual(fs.existsSync("index.html"), false, "root index entry should be removed");

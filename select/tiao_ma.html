@@ -10,7 +10,9 @@
     <!-- Tesseract.js for OCR -->
     <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
     <!-- HTML5-QRCode for Barcode/QR scanning -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+            onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'"
+            type="text/javascript"></script>
     <script src="./product_cache.js"></script>
     <style>
         :root { --danger: #ff4d4f; --warning: #faad14; --info: #1890ff; --safe: #52c41a; }
@@ -88,7 +90,7 @@
 
     <div id="actionArea">
         <button class="btn-main btn-sub" type="button" onclick="triggerOcrCapture()">
-            📷 继续拍配料表写入缓存
+            📷 切换拍配料表
         </button>
     </div>
 </div>
@@ -497,13 +499,14 @@ const INGREDIENT_DETAILS = {
 
 const LOCAL_CACHE_KEY = "food-scan-cache-v1";
 const CLOUD_SOURCE_CONFIG = {
-    // GitHub Pages 前端代码会公开，私有 API key 不应写在这里。
-    tanshuKey: ""
+    // GitHub Pages 会公开此值，仅适合用户明确接受公开风险的 Key。
+    tanshuKey: "920cacdc29d30037c7c434d19a82aee2"
 };
 const OCR_LANGUAGE = "chi_sim";
 const OCR_MAX_WIDTH = 1600;
 const OCR_JPEG_QUALITY = 0.82;
 const FETCH_TIMEOUT_MS = 4500;
+const SCAN_TIMEOUT_MS = 10000;
 const BARCODE_FORMATS = window.Html5QrcodeSupportedFormats ? [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.EAN_13,
@@ -529,9 +532,17 @@ let currentProductName = "";
 let currentIngredients = "";
 let ocrWorkerPromise = null;
 let ocrInProgress = false;
+let scanTimeoutId = null;
 
 function normalizeBarcode(code) {
     return String(code || "").replace(/\D/g, "");
+}
+
+function parseScannedBarcode(value) {
+    const text = String(value || "").trim();
+    if (/^\d{8,14}$/.test(text)) return text;
+    const match = text.match(/(?:^|\D)(\d{8,14})(?:\D|$)/);
+    return match ? match[1] : "";
 }
 
 function loadLocalCache() {
@@ -834,38 +845,55 @@ function toggleScanner() {
         .then(() => {
             statusTxt.innerText = "📷 请将条形码横向对准取景框，保持 10-20 厘米距离";
             setProgress(15, "等待识别条码");
+            scanTimeoutId = setTimeout(async () => {
+                scanTimeoutId = null;
+                await stopScanner("");
+                setProgress(100, "超过 10 秒未识别");
+                showOcrAction(getBarcodeFallbackMessage("scan_timeout"));
+            }, SCAN_TIMEOUT_MS);
         })
         .catch((err) => {
+            document.getElementById("reader").style.display = "none";
+            html5QrCode = null;
             showOcrAction("❌ 无法调用摄像头，请手动输入条码，或直接拍配料表分析");
             console.error(err);
         });
 }
 
-function stopScanner() {
-    if (!html5QrCode) return;
+async function stopScanner(nextStatus = "准备就绪") {
+    if (scanTimeoutId) {
+        clearTimeout(scanTimeoutId);
+        scanTimeoutId = null;
+    }
 
-    html5QrCode.stop()
-        .then(() => {
-            document.getElementById("reader").style.display = "none";
-            statusTxt.innerText = "准备就绪";
-        })
-        .catch((err) => console.error(err));
+    const scanner = html5QrCode;
+    html5QrCode = null;
+    if (scanner) {
+        await scanner.stop().catch((err) => console.error(err));
+    }
+    document.getElementById("reader").style.display = "none";
+    if (nextStatus) statusTxt.innerText = nextStatus;
 }
 
-function onScanSuccess(decodedText) {
-    stopScanner();
-    const code = normalizeBarcode(decodedText);
+async function onScanSuccess(decodedText) {
+    await stopScanner("");
+    const code = parseScannedBarcode(decodedText);
+    if (!code) {
+        setProgress(100, "二维码不是商品条码");
+        showOcrAction(getBarcodeFallbackMessage("invalid_qr"));
+        return;
+    }
     statusTxt.innerText = `✅ 扫码成功: ${code}，正在查询...`;
     setProgress(25, "条码识别成功，查询商品");
     lookupProduct(code);
 }
 
 function onScanFailure() {
-    // 忽略持续扫描中的失败
+    // 单帧识别失败很常见，统一由 10 秒计时器提示用户切换入口。
 }
 
 function cloudScanPrompt() {
-    const rawCode = prompt("请输入商品 13 位条形码:");
+    const rawCode = prompt("请输入商品 8-14 位条形码:");
     const code = normalizeBarcode(rawCode);
 
     if (!code) return;
@@ -874,7 +902,7 @@ function cloudScanPrompt() {
 
 function lookupProduct(code) {
     const normalizedCode = normalizeBarcode(code);
-    if (!normalizedCode) {
+    if (!/^\d{8,14}$/.test(normalizedCode)) {
         statusTxt.innerText = "❌ 条形码格式无效，请重新输入";
         return;
     }
@@ -1029,6 +1057,12 @@ function getBarcodeFallbackMessage(reason, productName) {
     }
     if (reason === "offline") {
         return "❌ 联网查询失败，请直接拍配料表继续分析并写入本地缓存";
+    }
+    if (reason === "scan_timeout") {
+        return "⚠️ 超过 10 秒未识别到条码，请点击下方按钮切换拍配料表";
+    }
+    if (reason === "invalid_qr") {
+        return "⚠️ 已识别二维码，但内容不是商品条码，请切换拍配料表";
     }
     return "❓ 商品库暂未收录该条码，请拍配料表继续分析并写入本地缓存";
 }
